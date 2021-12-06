@@ -10,7 +10,7 @@ class MadaraGenerator : ThemeSourceGenerator {
 
     override val themeClass = "Madara"
 
-    override val baseVersionCode: Int = 13
+    override val baseVersionCode: Int = 14
 
     override val sources = listOf(
         MultiLang("Leviatan Scans", "https://leviatanscans.com", listOf("en", "es"), className = "LeviatanScansFactory", overrideVersionCode = 9),
@@ -86,11 +86,9 @@ class MadaraGenerator : ThemeSourceGenerator {
         SingleLang("Fleur Blanche", "https://fleurscan.com", "pt-BR", isNsfw = true),
         SingleLang("Free Manga", "https://freemanga.me", "en", isNsfw = true, overrideVersionCode = 2),
         SingleLang("FreeWebtoonCoins", "https://freewebtooncoins.com", "en", overrideVersionCode = 1),
-        SingleLang("Fudido Scanlator", "https://fudidoscan.com", "pt-BR", isNsfw = true, overrideVersionCode = 2),
         SingleLang("Fug Manga", "https://fugmanga.net", "ar"),
         SingleLang("Fukushuu no Yuusha", "https://fny-scantrad.com", "fr", overrideVersionCode = 2),
         SingleLang("Furio Scans", "https://furioscans.com", "pt-BR", overrideVersionCode = 4),
-        SingleLang("GalaxyDegenScans", "https://gdscan.xyz", "en", overrideVersionCode = 2),
         SingleLang("Gatemanga", "https://gatemanga.com", "ar"),
         SingleLang("Gemanga", "https://gemanga.com", "ar"),
         SingleLang("Glory Scans", "https://gloryscan.com", "pt-BR", isNsfw = true, overrideVersionCode = 2),

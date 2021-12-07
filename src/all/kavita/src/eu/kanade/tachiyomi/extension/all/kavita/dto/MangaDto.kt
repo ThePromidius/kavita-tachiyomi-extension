@@ -33,21 +33,8 @@ data class KavitaComicsDetailsDto(
 )
 
 @Serializable
-data class TaoSectTagDto(
-    @SerialName("nome") val name: String = ""
-)
-
-@Serializable
-data class TaoSectVolumeDto(
-    @SerialName("capitulos") val chapters: List<TaoSectChapterDto> = emptyList()
-)
-
-@Serializable
-data class TaoSectChapterDto(
-    @SerialName("data_insercao") val date: String = "",
-    @SerialName("id_capitulo") val id: String = "",
-    @SerialName("nome_capitulo") val name: String = "",
-    @SerialName("paginas") val pages: List<String> = emptyList(),
-    @SerialName("post_id") val projectId: String? = "",
-    val slug: String = ""
+data class Login(
+    val username: String,
+    val token: String,
+    val apiKey: String
 )

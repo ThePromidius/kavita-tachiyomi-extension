@@ -3,20 +3,26 @@ package eu.kanade.tachiyomi.extension.all.kavita.dto
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class AggregateDto(
-    val result: String,
-    val volumes: Map<String, AggregateVolume>
-)
-
-@Serializable
 data class AggregateVolume(
-    val volume: String,
-    val count: String,
-    val chapters: Map<String, AggregateChapter>
+    val id: Int,
+    val name: String,
+    val pages: Int,
+    val pagesRead: Int,
+    val lastModified: String,
+    val created: String,
+    val seriesId: Int,
+    val chapters: List<AggregateChapter> = emptyList()
 )
-
 @Serializable
 data class AggregateChapter(
-    val chapter: String,
-    val count: String
+    val id: Int,
+    val range: String,
+    val number: String,
+    val pages: Int,
+    val isSpecial: Boolean,
+    val title: String,
+    val pagesRead: Int,
+    val coverImageLocked: Boolean,
+    val volumeId: Int,
+    val created: String
 )

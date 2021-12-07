@@ -4,11 +4,9 @@ import android.app.Application
 import android.content.SharedPreferences
 import android.text.InputType
 import android.widget.Toast
-import com.github.salomonbrys.kotson.fromJson
 import com.github.salomonbrys.kotson.get
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.google.gson.JsonSyntaxException
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.*
 import eu.kanade.tachiyomi.network.GET
@@ -30,6 +28,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.io.IOException
+import java.util.*
 
 class Kavita : ConfigurableSource, HttpSource() {
     private val json: Json by injectLazy()
@@ -39,6 +38,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     private inline fun <reified T> Response.parseAs(): T = use {
         json.decodeFromString(it.body?.string().orEmpty())
     }
+
     override fun popularMangaRequest(page: Int): Request {
         //    return GET("$baseUrl/browse?sort=views_w&page=$page")
         println("Popular Request")
@@ -78,7 +78,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         println(thumbnail_url)
         description = obj.description
         println(obj.description)
-        url = "/Series/${obj.id}"
+        url = "${obj.id}"
     }
     override fun latestUpdatesRequest(page: Int): Request =
         throw UnsupportedOperationException("Not used")
@@ -137,7 +137,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         println(baseUrl)
         println(manga.url)
 
-        return GET(baseUrl + manga.url, headersBuilder().build())
+        return GET("$baseUrl/Series/${manga.url}", headersBuilder().build())
     }
 
     // This will just return the same thing as the main library endpoint
@@ -173,15 +173,114 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     // The chapter url will contain how many pages the chapter contains for our page list endpoint
 
-    override fun chapterListParse(response: Response): List<SChapter> {
-        val result = try {
-            gson.fromJson<JsonObject>(response.body!!.string())
-        } catch (e: JsonSyntaxException) {
-            apiCookies = ""
-            throw Exception("Login Likely Failed. Try Refreshing.")
-        }
-        return listChapters(result)
+    override fun chapterListRequest(manga: SManga): Request {
+        val url = "$baseUrl/Series/volumes?seriesId=${manga.url}"
+
+        println("chapterListRequest")
+        println(url)
+        return GET(url, headersBuilder().build())
+
+        // return actualChapterListRequest(helper.getUUIDFromUrl(manga.url), 0)
     }
+
+    private fun chapterFromObject(obj: AggregateChapter): SChapter = SChapter.create().apply {
+        url = obj.id.toString()
+        name = "Chapter ${obj.number}"
+
+        date_upload = helper.parseDate(obj.created)
+        chapter_number = obj.number.toFloat()
+        scanlator = ""
+    }
+    /*import java.text.SimpleDateFormat
+    import java.util.Locale
+    import java.util.TimeZone*/
+    override fun chapterListParse(response: Response): List<SChapter> {
+        println("chapterListParse")
+        try {
+
+            val result = response.parseAs<List<AggregateVolume>>()
+
+            val allChapterList = mutableListOf<SChapter>()
+            val mangaList = result.map {
+                //
+                it.chapters.map {
+                    val res = chapterFromObject(it)
+                    allChapterList.add(res)
+                }
+                // chapterFromObject(it.Map)
+                // allChapterList.add()
+            }
+            return allChapterList
+        } catch (e: Exception) {
+            println("EXCEPTION")
+            println(e)
+            throw e
+        }
+
+        // val chapterListResults = mutableListOf<Map<String,AggregateChapter>>()
+
+        // return List<SChapter>(){}
+
+    /*
+        try {
+            val chapterListResponse = helper.json.decodeFromString<ChapterListDto>(response.body!!.string())
+
+            val chapterListResults = chapterListResponse.data.toMutableList()
+
+            val mangaId =
+                response.request.url.toString().substringBefore("/feed")
+                    .substringAfter("${MDConstants.apiMangaUrl}/")
+
+            val limit = chapterListResponse.limit
+
+            var offset = chapterListResponse.offset
+
+            var hasMoreResults = (limit + offset) < chapterListResponse.total
+
+            // max results that can be returned is 500 so need to make more api calls if limit+offset > total chapters
+            while (hasMoreResults) {
+                offset += limit
+                val newResponse =
+                    client.newCall(actualChapterListRequest(mangaId, offset)).execute()
+                val newChapterList = helper.json.decodeFromString<ChapterListDto>(newResponse.body!!.string())
+                chapterListResults.addAll(newChapterList.data)
+                hasMoreResults = (limit + offset) < newChapterList.total
+            }
+
+            val now = Date().time
+
+            return chapterListResults.mapNotNull { helper.createChapter(it) }
+                .filter {
+                    it.date_upload <= now
+                }
+        } catch (e: Exception) {
+            Log.e("MangaDex", "error parsing chapter list", e)
+            throw(e)
+        }*/
+    }
+
+    // val response = client.newCall(   ).execute()
+
+    /*private fun fetchSimpleChapterList(manga: KavitaComicsDetailsDto): List<String> {
+        val url = "$baseUrl/Series/${manga.id}"
+        val response = client.newCall(GET(url, headersBuilder().build())).execute()
+        val result = response.parseAs<List<AggregateVolume>>()
+
+
+        val chapters = result.map(::popularMangaFromObject)
+
+
+
+
+        val chapters: AggregateDto
+        try {
+            chapters = helper.json.decodeFromString(response.body!!.string())
+        } catch (e: SerializationException) {
+            return emptyList()
+        }
+        if (chapters.volumes.isNullOrEmpty()) return emptyList()
+        return chapters.volumes.values.flatMap { it.chapters.values }.map { it.chapter }
+    }*/
 
     // Helper function for listing chapters and chapters in nested titles recursively
     private fun listChapters(titleObj: JsonObject): List<SChapter> {

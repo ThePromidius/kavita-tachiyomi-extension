@@ -13,6 +13,8 @@ class KavitaHelper {
     fun parseDate(dateAsString: String): Long =
         MDConstants.dateFormatter.parse(dateAsString)?.time ?: 0
 */
+    fun parseDate(dateAsString: String): Long =
+        MDConstants.dateFormatter.parse(dateAsString)?.time ?: 0
 }
 /**
  * Remove bbcode tags as well as parses any html characters in description or
@@ -134,7 +136,8 @@ class KavitaHelper {
 /**
  * create the SChapter from json
  */
-  /*  fun createChapter(chapterDataDto: ChapterDataDto): SChapter? {
+/*
+    fun createChapter(chapterDataDto: ChapterDataDto): SChapter? {
         try {
             val attr = chapterDataDto.attributes
 

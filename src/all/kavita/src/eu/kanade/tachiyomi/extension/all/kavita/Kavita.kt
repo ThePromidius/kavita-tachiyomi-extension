@@ -11,6 +11,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.*
+import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
@@ -77,7 +78,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         println(thumbnail_url)
         description = obj.description
         println(obj.description)
-        setUrlWithoutDomain("$baseUrl/Series/${obj.id}")
+        url = "/Series/${obj.id}"
     }
     override fun latestUpdatesRequest(page: Int): Request =
         throw UnsupportedOperationException("Not used")
@@ -86,7 +87,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         throw UnsupportedOperationException("Not used")
 
     // Default is to just return the whole library for searching
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = popularMangaRequest(1)
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = throw UnsupportedOperationException("Not used") // popularMangaRequest(1)
 
     // Overridden fetch so that we use our overloaded method instead
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
@@ -131,20 +132,47 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun searchMangaParse(response: Response): MangasPage =
         throw UnsupportedOperationException("Not used")
 
-    /*override fun mangaDetailsRequest(manga: SManga): Request =
-        GET(baseUrl + "/api" + manga.url, headers)*/
+    override fun mangaDetailsRequest(manga: SManga): Request {
+        println("mangaDetailsRequest")
+        println(baseUrl)
+        println(manga.url)
+
+        return GET(baseUrl + manga.url, headersBuilder().build())
+    }
 
     // This will just return the same thing as the main library endpoint
-    override fun mangaDetailsParse(response: Response): SManga {
-        // val manga = helper.json.decodeFromString<MangaDto>(response.body!!.string())
+    private fun mangaDetailsFromObject(obj: KavitaComicsDetailsDto): SManga = SManga.create().apply {
+        println("mangaDetailsFromObject")
+        url = "/Series/${obj.id}"
+        title = obj.name
+        // artist = obj.artist
+        // author = obj.author
+        // description = obj.summary
+        description = "This is description"
+        // genre = obj.genres.joinToString(", ")
+        // status = obj.status
+        thumbnail_url = obj.thumbnail_url
+    }
 
-        return SManga.create() // helper.createManga(manga.data, fetchSimpleChapterList(manga, ""), "dexLang", "coverSuffix")
+    override fun mangaDetailsParse(response: Response): SManga {
+        println("mangaDetailsParse")
+        // val jsonResponse = response
+
+        // println(Gson().toJson(jsonResponse.body!!.string()))
+        val result = response.parseAs<KavitaComicsDetailsDto>()
+        println(result.name)
+        val mangaDetails = mangaDetailsFromObject(result)
+        println(mangaDetails.description)
+        return mangaDetails
+
+        // helper.createManga(manga.data, fetchSimpleChapterList(manga, ""), "dexLang", "coverSuffix")
     }
 
     /*override fun chapterListRequest(manga: SManga): Request =
         GET(baseUrl + "/api" + manga.url + "?sort=auto", headers)*/
 
     // The chapter url will contain how many pages the chapter contains for our page list endpoint
+
     override fun chapterListParse(response: Response): List<SChapter> {
         val result = try {
             gson.fromJson<JsonObject>(response.body!!.string())

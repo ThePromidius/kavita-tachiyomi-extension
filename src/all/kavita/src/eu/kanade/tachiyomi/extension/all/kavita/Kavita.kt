@@ -6,7 +6,6 @@ import android.text.InputType
 import android.widget.Toast
 import com.github.salomonbrys.kotson.get
 import com.google.gson.Gson
-import com.google.gson.JsonObject
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.*
 import eu.kanade.tachiyomi.network.GET
@@ -31,14 +30,10 @@ import java.io.IOException
 import java.util.*
 
 class Kavita : ConfigurableSource, HttpSource() {
-    private val json: Json by injectLazy()
-    private val apiToken: String?
-        get() = preferences.getString("apiToken", "")
-    private val helper = KavitaHelper()
-    private inline fun <reified T> Response.parseAs(): T = use {
-        json.decodeFromString(it.body?.string().orEmpty())
-    }
 
+/**
+ * POPULAR MANGA
+ * **/
     override fun popularMangaRequest(page: Int): Request {
         //    return GET("$baseUrl/browse?sort=views_w&page=$page")
         println("Popular Request")
@@ -80,12 +75,18 @@ class Kavita : ConfigurableSource, HttpSource() {
         println(obj.description)
         url = "${obj.id}"
     }
+/**
+ * LATES UPDATES UNUSED MANGA
+ * **/
+
     override fun latestUpdatesRequest(page: Int): Request =
         throw UnsupportedOperationException("Not used")
 
     override fun latestUpdatesParse(response: Response): MangasPage =
         throw UnsupportedOperationException("Not used")
-
+/**
+ * SEARCH MANGA NOT IMPLEMENTED YET SURELY THROWS EXCEPTION
+ * **/
     // Default is to just return the whole library for searching
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = throw UnsupportedOperationException("Not used") // popularMangaRequest(1)
 
@@ -131,7 +132,9 @@ class Kavita : ConfigurableSource, HttpSource() {
     // Stub
     override fun searchMangaParse(response: Response): MangasPage =
         throw UnsupportedOperationException("Not used")
-
+/**
+ * MANGA DETAILS
+ * **/
     override fun mangaDetailsRequest(manga: SManga): Request {
         println("mangaDetailsRequest")
         println(baseUrl)
@@ -172,7 +175,9 @@ class Kavita : ConfigurableSource, HttpSource() {
         GET(baseUrl + "/api" + manga.url + "?sort=auto", headers)*/
 
     // The chapter url will contain how many pages the chapter contains for our page list endpoint
-
+/**
+ * CHAPTER LIST
+ * **/
     override fun chapterListRequest(manga: SManga): Request {
         val url = "$baseUrl/Series/volumes?seriesId=${manga.url}"
 
@@ -186,10 +191,9 @@ class Kavita : ConfigurableSource, HttpSource() {
     private fun chapterFromObject(obj: AggregateChapter): SChapter = SChapter.create().apply {
         url = obj.id.toString()
         name = "Chapter ${obj.number}"
-
         date_upload = helper.parseDate(obj.created)
         chapter_number = obj.number.toFloat()
-        scanlator = ""
+        scanlator = obj.pages.toString()
     }
     /*import java.text.SimpleDateFormat
     import java.util.Locale
@@ -216,127 +220,48 @@ class Kavita : ConfigurableSource, HttpSource() {
             println(e)
             throw e
         }
+    }
 
         // val chapterListResults = mutableListOf<Map<String,AggregateChapter>>()
 
         // return List<SChapter>(){}
 
-    /*
-        try {
-            val chapterListResponse = helper.json.decodeFromString<ChapterListDto>(response.body!!.string())
+/**
+ * ACTUAL IMAGE OF PAGES REQUEST
+ * **/
+    override fun pageListRequest(chapter: SChapter): Request = throw UnsupportedOperationException("Not used")
 
-            val chapterListResults = chapterListResponse.data.toMutableList()
-
-            val mangaId =
-                response.request.url.toString().substringBefore("/feed")
-                    .substringAfter("${MDConstants.apiMangaUrl}/")
-
-            val limit = chapterListResponse.limit
-
-            var offset = chapterListResponse.offset
-
-            var hasMoreResults = (limit + offset) < chapterListResponse.total
-
-            // max results that can be returned is 500 so need to make more api calls if limit+offset > total chapters
-            while (hasMoreResults) {
-                offset += limit
-                val newResponse =
-                    client.newCall(actualChapterListRequest(mangaId, offset)).execute()
-                val newChapterList = helper.json.decodeFromString<ChapterListDto>(newResponse.body!!.string())
-                chapterListResults.addAll(newChapterList.data)
-                hasMoreResults = (limit + offset) < newChapterList.total
-            }
-
-            val now = Date().time
-
-            return chapterListResults.mapNotNull { helper.createChapter(it) }
-                .filter {
-                    it.date_upload <= now
-                }
-        } catch (e: Exception) {
-            Log.e("MangaDex", "error parsing chapter list", e)
-            throw(e)
-        }*/
-    }
-
-    // val response = client.newCall(   ).execute()
-
-    /*private fun fetchSimpleChapterList(manga: KavitaComicsDetailsDto): List<String> {
-        val url = "$baseUrl/Series/${manga.id}"
-        val response = client.newCall(GET(url, headersBuilder().build())).execute()
-        val result = response.parseAs<List<AggregateVolume>>()
-
-
-        val chapters = result.map(::popularMangaFromObject)
-
-
-
-
-        val chapters: AggregateDto
-        try {
-            chapters = helper.json.decodeFromString(response.body!!.string())
-        } catch (e: SerializationException) {
-            return emptyList()
-        }
-        if (chapters.volumes.isNullOrEmpty()) return emptyList()
-        return chapters.volumes.values.flatMap { it.chapters.values }.map { it.chapter }
-    }*/
-
-    // Helper function for listing chapters and chapters in nested titles recursively
-    private fun listChapters(titleObj: JsonObject): List<SChapter> {
-        val chapters = mutableListOf<SChapter>()
-        val topChapters = titleObj.getAsJsonArray("entries")?.map { obj ->
-            SChapter.create().apply {
-                name = obj["display_name"].asString
-                url =
-                    "/page/${obj["title_id"].asString}/${obj["id"].asString}/${obj["pages"].asString}/"
-                date_upload = 1000L * obj["mtime"].asLong
-            }
-        }
-        val subChapters = titleObj.getAsJsonArray("titles")?.map { obj ->
-            val name = obj["display_name"].asString
-            listChapters(obj.asJsonObject).map { chp ->
-                chp.name = "$name / ${chp.name}"
-                chp
-            }
-        }?.flatten()
-        if (topChapters !== null) chapters += topChapters
-        if (subChapters !== null) chapters += subChapters
-        return chapters
-    }
-
-    // Stub
-    override fun pageListRequest(chapter: SChapter): Request =
-        throw UnsupportedOperationException("Not used")
-
-    // Overridden fetch so that we use our overloaded method instead
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
-        val splitUrl = chapter.url.split("/").toMutableList()
-        val numPages = splitUrl.removeAt(splitUrl.size - 2).toInt()
-        val baseUrlChapter = splitUrl.joinToString("/")
+        val chapterId = chapter.url
+        val numPages = chapter.scanlator?.toInt()
         val pages = mutableListOf<Page>()
-        for (i in 1..numPages) {
+        for (i in 0..numPages!!) {
             pages.add(
                 Page(
                     index = i,
-                    imageUrl = "$baseUrl/api$baseUrlChapter$i"
+                    imageUrl = "$baseUrl/Reader/image?chapterId=$chapterId&page=$i"
                 )
             )
         }
         return Observable.just(pages)
     }
 
-    // Stub
-    override fun pageListParse(response: Response): List<Page> =
-        throw UnsupportedOperationException("Not used")
+
+    override fun pageListParse(response: Response): List<Page> = throw UnsupportedOperationException("Not used")
 
     override fun imageUrlParse(response: Response): String = ""
+
+/**
+ * UNUSED FILTER
+ * **/
     override fun getFilterList(): FilterList = FilterList()
 
     override val name = "Kavita"
     override val lang = "all"
     override val supportsLatest = false
-
+/**
+ * SOME USEFUL VARS
+ * **/
     override val baseUrl by lazy { getPrefBaseUrl() }
     private val port by lazy { getPrefPort() }
     private val username by lazy { getPrefUsername() }
@@ -344,12 +269,20 @@ class Kavita : ConfigurableSource, HttpSource() {
     private val token by lazy { getPrefToken() }
     private val gson by lazy { Gson() }
     private var apiCookies: String = ""
-
+    private val json: Json by injectLazy()
+    private val apiToken: String?
+        get() = preferences.getString("apiToken", "")
+    private val helper = KavitaHelper()
+    private inline fun <reified T> Response.parseAs(): T = use {
+        json.decodeFromString(it.body?.string().orEmpty())
+    }
     override fun headersBuilder(): Headers.Builder =
+        /** Remember to add .build() at the end of headersBuilder()**/
         Headers.Builder()
             .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")
             .add("Authorization", "Bearer $token")
     private fun tokenBodyBuilder(): RequestBody {
+
         val jsonObject = JSONObject()
         println(apiToken)
         jsonObject.put("mangaFormat", 0)
@@ -357,6 +290,11 @@ class Kavita : ConfigurableSource, HttpSource() {
             .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         return body
     }
+
+/**
+ * PREFERENCES SETUP
+ * **/
+
 
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)

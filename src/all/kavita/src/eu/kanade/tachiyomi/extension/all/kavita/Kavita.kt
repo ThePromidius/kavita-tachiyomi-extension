@@ -447,17 +447,17 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     companion object {
         private const val ADDRESS_TITLE = "Address"
-        private const val ADDRESS_DEFAULT = "http://192.168.0.135:5000/api/"
+        private const val ADDRESS_DEFAULT = "https://demo.kavitareader.com/api"
         private const val PORT_TITLE = "Server Port Number"
-        private const val PORT_DEFAULT = "5000"
+        private const val PORT_DEFAULT = "80"
         private const val USERNAME_TITLE = "Username"
-        private const val USERNAME_DEFAULT = ""
+        private const val USERNAME_DEFAULT = "demouser"
         private const val PASSWORD_TITLE = "Password"
-        private const val PASSWORD_DEFAULT = ""
+        private const val PASSWORD_DEFAULT = "Demouser64"
         private const val APIKEY = "apiKey"
         private const val APIKEY_DEFAULT = ""
         private const val BEARERTOKEN = "Token"
         private const val BEARERTOKEN_DEFAULT = ""
-        // private const val BEARERTOKEN_DEFAULT = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiJ1c2VybmFtZSIsInJvbGUiOiJBZG1pbiIsIm5iZiI6MTYzODcyNjU0NSwiZXhwIjoxNjM5MzMxMzQ1LCJpYXQiOjE2Mzg3MjY1NDV9.P_1YBjZacv1JX9aIi6LnzC_gC45FzCptz8vbB39Zi4_6q-5TWzOTBBaYV0lP93jVdC1G4zv9fO8EYFiSJo8KgQ"
+        // private const val PASSWORD_DEFAULT = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiJkZW1vdXNlciIsInJvbGUiOiJQbGViIiwibmJmIjoxNjM5MDA0NzQzLCJleHAiOjE2Mzk2MDk1NDMsImlhdCI6MTYzOTAwNDc0M30.NiMpyBuC-VLDiSZ22EYn9T0Hyl8nE9mM37pl_4FTYNtsLLVzhZzbg0rQMLGKiW0SyWXBp-h4BcuFNYXSl5kknA"
     }
 }

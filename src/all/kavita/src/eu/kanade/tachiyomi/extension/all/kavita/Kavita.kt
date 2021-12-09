@@ -33,6 +33,7 @@ import java.net.URLEncoder
 class Kavita : ConfigurableSource, HttpSource() {
 
     private var libraries = emptyList<LibraryDto>()
+    private var series = emptyList<SeriesDto>()
 
     override fun popularMangaRequest(page: Int): Request {
         println("popularMangaRequest Page: $page")
@@ -54,21 +55,8 @@ class Kavita : ConfigurableSource, HttpSource() {
         }
 
         val result = response.parseAs<List<SeriesDto>>()
-
-        /** KavitaComicsDto:
-         val id: Int,
-         val url: String,
-         @SerialName("name") val title: String,
-         // Api doesnt provides thumbnail url but it will -> WIP placeholder:
-         val thumbnail_url: String? = "http://192.168.0.135:5000/api/image/series-cover?seriesId=14",
-         @SerialName("summary") val description: String
-         **/
-
-        /**
-         * Create list of SManga with values from KavitaComicsDto
-         */
-        val mangaList = result.map(::createSeriesDto)
-
+        series = result
+        var mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }
         return MangasPage(mangaList, helper.hasNextPage(response))
     }
 
@@ -142,7 +130,9 @@ class Kavita : ConfigurableSource, HttpSource() {
      * **/
     override fun mangaDetailsRequest(manga: SManga): Request {
         println("mangaDetailsRequest")
-        return GET(manga.url, headersBuilder().build())
+        println(manga.url)
+
+        return GET("$baseUrl/series/metadata?seriesId=${getIdFromImageUrl(manga.url)}", headersBuilder().build())
     }
 
     private fun getIdFromImageUrl(url: String): Int {
@@ -151,8 +141,26 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override fun mangaDetailsParse(response: Response): SManga {
         println("mangaDetailsParse")
-        val result = response.parseAs<SeriesDto>()
-        return helper.createSeriesDto(result, baseUrl)
+        // This is metadata
+        val result = response.parseAs<SeriesMetadataDto>()
+        var existingSeries = series.find { dto -> dto.id == result.seriesId }
+
+        if (existingSeries != null) {
+            println("Found existing series")
+            var manga = helper.createSeriesDto(existingSeries, baseUrl)
+            manga.artist = result.artists.joinToString { ", " }
+            manga.author = result.writers.joinToString { ", " }
+            manga.genre = result.genres.joinToString { ", " }
+            return manga
+        }
+
+        return SManga.create().apply {
+            url = "$baseUrl/Series/${result.id}"
+            artist = result.artists.joinToString { ", " }
+            author = result.writers.joinToString { ", " }
+            genre = result.genres.joinToString { ", " }
+            thumbnail_url = "$baseUrl/image/series-cover?seriesId=${result.id}"
+        }
     }
 
     // The chapter url will contain how many pages the chapter contains for our page list endpoint
@@ -189,17 +197,19 @@ class Kavita : ConfigurableSource, HttpSource() {
         println("chapterListParse")
         try {
 
-            val result = response.parseAs<List<AggregateVolume>>()
+            val volumes = response.parseAs<List<VolumeDto>>()
 
             val allChapterList = mutableListOf<SChapter>()
 
-            val mangaList = result.map {
+            // Goal: Flatten volumes into Chapters, sort specials, volumes, regular chapters
+            // To accomplish flattening, volumes will have their individual chapters labelled Volume Number.Chapter Number
 
-                print("Transforming chapter from ")
-                print(it)
+            val mangaList = volumes.map {
+
+                print("Transforming volume from ")
+                println(it)
                 if (it.name == "0") {
                     // These are just chapters
-
                     it.chapters.map {
                         allChapterList.add(chapterFromVolume(it))
                     }
@@ -209,6 +219,9 @@ class Kavita : ConfigurableSource, HttpSource() {
                     }
                 }
             }
+
+            allChapterList.sortBy { chapter -> chapter.chapter_number }
+
             println(allChapterList)
             return allChapterList
         } catch (e: Exception) {
@@ -221,10 +234,15 @@ class Kavita : ConfigurableSource, HttpSource() {
     /**
      * ACTUAL IMAGE OF PAGES REQUEST
      * **/
-    override fun pageListRequest(chapter: SChapter): Request =
-        throw UnsupportedOperationException("Not used")
+    override fun pageListRequest(chapter: SChapter): Request {
+        println("pageListRequest")
+        println(chapter)
+        return GET("${chapter.url}/Reader/chapter-info")
+    }
 
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
+        println("fetchPageList")
+        println(chapter)
         val chapterId = chapter.url
         val numPages = chapter.scanlator?.toInt()
         val pages = mutableListOf<Page>()
@@ -295,7 +313,6 @@ class Kavita : ConfigurableSource, HttpSource() {
         if (requestSuccess) {
             println("Authentication successful")
             val result = response.parseAs<AuthenticationDto>()
-            print(result)
             if (result.token.isNotEmpty()) {
                 preferences.edit().putString(BEARERTOKEN, result.token).commit()
                 throw IOException("Restart Tachiyomi")
@@ -306,13 +323,6 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
     private fun authIntercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-
-        val authHeader = request.header("Authentication")
-        if (!authHeader.isNullOrEmpty()) {
-            print("Auth is empty")
-        } else {
-            println(request.headers)
-        }
 
         if (apiKey.isEmpty()) {
             throw IOException("An API KEY is required to authenticate with Kavita")

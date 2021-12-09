@@ -39,7 +39,7 @@ class KavitaHelper {
 
     fun createSeriesDto(obj: SeriesDto, baseUrl: String): SManga =
         SManga.create().apply {
-            println("mangaDetailsFromObject")
+            println("createSeriesDto")
             println(obj)
             url = "$baseUrl/Series/${obj.id}"
             title = obj.name

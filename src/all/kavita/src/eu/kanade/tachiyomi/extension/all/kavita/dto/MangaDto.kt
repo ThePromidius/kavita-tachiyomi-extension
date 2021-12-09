@@ -61,6 +61,23 @@ data class SeriesDto(
 )
 
 @Serializable
+data class SeriesMetadataDto(
+    val id: Int,
+    val writers: List<Person>,
+    val artists: List<Person>,
+    val genres: List<String>,
+    val seriesId: Int,
+    val ageRating: Int
+
+)
+
+@Serializable
+data class Person(
+    val name: String,
+
+)
+
+@Serializable
 data class VolumeDto(
     val id: Int,
     val number: Int,
@@ -68,6 +85,9 @@ data class VolumeDto(
     val pages: Int,
     val pagesRead: Int,
     val lastModified: String
+    val created: String,
+    val seriesId: Int,
+    val chapters: List<AggregateChapter> = emptyList()
 )
 
 abstract class KavitaManga : SManga {

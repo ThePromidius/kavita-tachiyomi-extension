@@ -307,8 +307,6 @@ class Kavita : ConfigurableSource, HttpSource() {
     override val lang = "all"
     override val supportsLatest = false
     override val baseUrl by lazy { getPrefBaseUrl() }
-//    private val username by lazy { getPrefUsername() }
-//    private val password by lazy { getPrefPassword() }
     private val jwtToken by lazy { getPrefToken() }
     private val apiKey by lazy { getPrefApiKey() }
     private val gson by lazy { Gson() }
@@ -321,9 +319,9 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override fun headersBuilder(): Headers.Builder {
         /** Remember to add .build() at the end of headersBuilder()**/
-        println("headersBuilder")
-        println(jwtToken)
-        println("------")
+//        println("headersBuilder")
+//        println(jwtToken)
+//        println("------")
         return Headers.Builder()
             .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")
             .add("Content-Type", "application/json")
@@ -335,14 +333,6 @@ class Kavita : ConfigurableSource, HttpSource() {
         jsonObject.put("mangaFormat", MangaFormat.Archive)
         return jsonObject.toString()
             .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-    }
-
-    /**
-     * PREFERENCES SETUP
-     * **/
-
-    private val preferences: SharedPreferences by lazy {
-        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
     override val client: OkHttpClient =
@@ -392,12 +382,13 @@ class Kavita : ConfigurableSource, HttpSource() {
         return chain.proceed(request)
     }
 
+    // Preference code
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
         screen.addPreference(screen.editTextPreference(ADDRESS_TITLE, ADDRESS_DEFAULT, "The URL to access your Kavita instance. Please include the port number if you didn't set up a reverse proxy"))
         screen.addPreference(screen.editTextPreference(APIKEY, "", "The API KEY copied from User Settings", true))
-
-        // screen.addPreference(screen.editTextPreference(USERNAME_TITLE, USERNAME_DEFAULT, "Your login username")) // TODO: Remove
-        // screen.addPreference(screen.editTextPreference(PASSWORD_TITLE, PASSWORD_DEFAULT, "Your login password", true)) // TODO: Remove
         screen.addPreference(screen.editTextPreference(BEARERTOKEN, BEARERTOKEN_DEFAULT, "Your Token (Don't touch unless necessary)", true)) // TODO: Remove
     }
 
@@ -437,24 +428,15 @@ class Kavita : ConfigurableSource, HttpSource() {
         }
         return path
     }
-    // private fun getPrefUsername(): String = preferences.getString(USERNAME_TITLE, USERNAME_DEFAULT)!!
-    // private fun getPrefPassword(): String = preferences.getString(PASSWORD_TITLE, PASSWORD_DEFAULT)!!
     private fun getPrefApiKey(): String = preferences.getString(APIKEY, APIKEY_DEFAULT)!!
     private fun getPrefToken(): String = preferences.getString(BEARERTOKEN, BEARERTOKEN_DEFAULT)!!
 
     companion object {
         private const val ADDRESS_TITLE = "Address"
         private const val ADDRESS_DEFAULT = "https://demo.kavitareader.com/api"
-//        private const val PORT_TITLE = "Server Port Number"
-//        private const val PORT_DEFAULT = "80"
-//        private const val USERNAME_TITLE = "Username"
-//        private const val USERNAME_DEFAULT = "demouser"
-//        private const val PASSWORD_TITLE = "Password"
-//        private const val PASSWORD_DEFAULT = "Demouser64"
         private const val APIKEY = "API KEY"
         private const val APIKEY_DEFAULT = ""
         private const val BEARERTOKEN = "Token"
         private const val BEARERTOKEN_DEFAULT = ""
-        // private const val PASSWORD_DEFAULT = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiJkZW1vdXNlciIsInJvbGUiOiJQbGViIiwibmJmIjoxNjM5MDA0NzQzLCJleHAiOjE2Mzk2MDk1NDMsImlhdCI6MTYzOTAwNDc0M30.NiMpyBuC-VLDiSZ22EYn9T0Hyl8nE9mM37pl_4FTYNtsLLVzhZzbg0rQMLGKiW0SyWXBp-h4BcuFNYXSl5kknA"
     }
 }

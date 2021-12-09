@@ -5,16 +5,14 @@ import android.content.SharedPreferences
 import android.text.InputType
 import android.widget.Toast
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.*
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
-import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.*
 import eu.kanade.tachiyomi.source.online.HttpSource
-import info.debatty.java.stringsimilarity.JaroWinkler
-import info.debatty.java.stringsimilarity.Levenshtein
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okhttp3.*
@@ -46,13 +44,9 @@ class Kavita : ConfigurableSource, HttpSource() {
     // Our popular manga are just our library of manga
     override fun popularMangaParse(response: Response): MangasPage {
         println("Popular Parse")
-        if (response.isSuccessful.not()) {
-            println("Exception")
-            throw Exception("HTTP ${response.code}")
-        }
 
         val result = response.parseAs<List<KavitaComicsDto>>()
-
+        println(result)
         /** KavitaComicsDto:
          val id: Int,
          val url: String,
@@ -90,61 +84,29 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun latestUpdatesParse(response: Response): MangasPage =
         throw UnsupportedOperationException("Not used")
 
+
+
     /**
-     * SEARCH MANGA NOT IMPLEMENTED YET SURELY THROWS EXCEPTION
+     * SEARCH MANGA
      * **/
-    // Default is to just return the whole library for searching
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
-        throw UnsupportedOperationException("Not used") // popularMangaRequest(1)
 
-    // Overridden fetch so that we use our overloaded method instead
-    override fun fetchSearchManga(
-        page: Int,
-        query: String,
-        filters: FilterList
-    ): Observable<MangasPage> {
-        return client.newCall(searchMangaRequest(page, query, filters))
-            .asObservableSuccess()
-            .map { response ->
-                searchMangaParse(response, query)
-            }
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        return GET("$baseUrl/Library/search?queryString=$query", headers)
     }
-
-    // Here the best we can do is just match manga based on their titles
-    private fun searchMangaParse(response: Response, query: String): MangasPage {
-
-        val queryLower = query.toLowerCase()
-        val mangas = popularMangaParse(response).mangas
-        val exactMatch = mangas.firstOrNull { it.title.toLowerCase() == queryLower }
-        if (exactMatch != null) {
-            return MangasPage(listOf(exactMatch), false)
-        }
-
-        // Text distance algorithms
-        val textDistance = Levenshtein()
-        val textDistance2 = JaroWinkler()
-
-        // Take results that potentially start the same
-        val results = mangas.filter {
-            val title = it.title.toLowerCase()
-            val query2 = queryLower.take(7)
-            (title.startsWith(query2, true) || title.contains(query2, true))
-        }.sortedBy { textDistance.distance(queryLower, it.title.toLowerCase()) }
-
-        // Take similar results
-        val results2 =
-            mangas.map { Pair(textDistance2.distance(it.title.toLowerCase(), query), it) }
-                .filter { it.first < 0.3 }.sortedBy { it.first }.map { it.second }
-        val combinedResults = results.union(results2)
-
-        // Finally return the list
-        return MangasPage(combinedResults.toList(), false)
+    override fun searchMangaParse(response: Response): MangasPage {
+        val result = response.parseAs<List<KavitaComicsSearch>>()
+        val mangaList = result.map(::searchMangaFromObject)
+        return MangasPage(mangaList, false)
     }
-
-    // Stub
-    override fun searchMangaParse(response: Response): MangasPage =
-        throw UnsupportedOperationException("Not used")
-
+    private fun searchMangaFromObject(obj: KavitaComicsSearch): SManga = SManga.create().apply {
+        title = obj.name
+        thumbnail_url = "$baseUrl/Image/series-cover?seriesId=${obj.seriesId}"
+        println("url")
+        println(thumbnail_url)
+        description = "None"
+        println(description)
+        url = "${obj.seriesId}"
+    }
     /**
      * MANGA DETAILS
      * **/
@@ -185,10 +147,6 @@ class Kavita : ConfigurableSource, HttpSource() {
         // helper.createManga(manga.data, fetchSimpleChapterList(manga, ""), "dexLang", "coverSuffix")
     }
 
-    /*override fun chapterListRequest(manga: SManga): Request =
-        GET(baseUrl + "/api" + manga.url + "?sort=auto", headers)*/
-
-    // The chapter url will contain how many pages the chapter contains for our page list endpoint
     /**
      * CHAPTER LIST
      * **/

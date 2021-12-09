@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import android.text.InputType
 import android.widget.Toast
 import com.google.gson.Gson
-import com.google.gson.JsonParser
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.*
 import eu.kanade.tachiyomi.network.GET
@@ -83,8 +82,6 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override fun latestUpdatesParse(response: Response): MangasPage =
         throw UnsupportedOperationException("Not used")
-
-
 
     /**
      * SEARCH MANGA
@@ -243,10 +240,10 @@ class Kavita : ConfigurableSource, HttpSource() {
      * **/
     override val baseUrl by lazy { getPrefBaseUrl() }
     private val port by lazy { getPrefPort() }
-    private val username by lazy { getPrefUsername() }
-    private val password by lazy { getPrefPassword() }
+    // private val username by lazy { getPrefUsername() }
+    // private val password by lazy { getPrefPassword() }
     private val JWTtoken by lazy { getPrefToken() }
-    private val apiKey by lazy { getPrefApiKey() }
+    // private val apiKey by lazy { getPrefApiKey() }
     private val gson by lazy { Gson() }
     private val json: Json by injectLazy()
 
@@ -285,7 +282,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         network.client.newBuilder()
             .addInterceptor { authIntercept(it) }
             .build()
-    private fun isValidToken(chain: Interceptor.Chain): Boolean {
+    /* REDUNDANT AND NOT USED: private fun isValidToken(chain: Interceptor.Chain): Boolean {
         val jsonObject = JSONObject()
             .put("Authorization", "Bearer $JWTtoken")
         // ("""{"Authorization":"Bearer $JWTtoken"}""")
@@ -300,38 +297,34 @@ class Kavita : ConfigurableSource, HttpSource() {
         println("requestSuccess: " + requestSuccess)
         response.close()
         return requestSuccess
-    }
+    }*/
+
     private fun authIntercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
 
-        if (username.isEmpty() || password.isEmpty()) { // If there is no password or username in preferences:
+        /*if (username.isEmpty() || password.isEmpty()) { // If there is no password or username in preferences:
             val res = preferences.edit().putString(APIKEY, "").commit()
             val res2 = preferences.edit().putString(BEARERTOKEN, "").commit()
 
             throw IOException("Token deleted:Missing username or password")
-        }
+        }*/
 
         if (JWTtoken.isEmpty()) { // If there is no token stored in preferences:
-            doLogin(chain)
-        }
-        if (isValidToken(chain)) {
-            println("True valid token")
-            return chain.proceed(request)
-        } else {
-            doLogin(chain)
+            throw IOException("Please make sure to place your token in the extension setup menu")
+            // doLogin(chain)
         }
 
         return chain.proceed(request)
     }
 
-    private fun doLogin(chain: Interceptor.Chain) {
+    /*private fun doLogin(chain: Interceptor.Chain) {
         val formHeaders: Headers = headersBuilder()
             .add("ContentType", "application/x-www-form-urlencoded")
             .build()
-        val jsonObject = JSONObject() // Create JSON to send in a POST
+        /*val jsonObject = JSONObject() // Create JSON to send in a POST
         jsonObject.put("username", username)
         jsonObject.put("password", password)
-
+        */
         val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
 
         val loginRequest = POST("$baseUrl/Account/login", formHeaders, body)
@@ -351,14 +344,14 @@ class Kavita : ConfigurableSource, HttpSource() {
         // Save the cookies from the response
 
         response.close()
-    }
+    }*/
 
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
         screen.addPreference(screen.editTextPreference(ADDRESS_TITLE, ADDRESS_DEFAULT, "The URL to access your Mango instance. Please include the port number if you didn't set up a reverse proxy"))
         screen.addPreference(screen.editTextPreference(PORT_TITLE, PORT_DEFAULT, "The port number to use if it's not the default 5000"))
-        screen.addPreference(screen.editTextPreference(USERNAME_TITLE, USERNAME_DEFAULT, "Your login username"))
-        screen.addPreference(screen.editTextPreference(PASSWORD_TITLE, PASSWORD_DEFAULT, "Your login password", true))
-        screen.addPreference(screen.editTextPreference(BEARERTOKEN, BEARERTOKEN_DEFAULT, "Your Token (Don't touch unless necessary)", true))
+        // screen.addPreference(screen.editTextPreference(USERNAME_TITLE, USERNAME_DEFAULT, "Your login username"))
+        // screen.addPreference(screen.editTextPreference(PASSWORD_TITLE, PASSWORD_DEFAULT, "Your login password", true))
+        screen.addPreference(screen.editTextPreference(BEARERTOKEN, BEARERTOKEN_DEFAULT, "Your Token goes here", true))
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(title: String, default: String, summary: String, isPassword: Boolean = false): androidx.preference.EditTextPreference {
@@ -398,9 +391,9 @@ class Kavita : ConfigurableSource, HttpSource() {
         return path
     }
     private fun getPrefPort(): String = preferences.getString(PORT_TITLE, PORT_DEFAULT)!!
-    private fun getPrefUsername(): String = preferences.getString(USERNAME_TITLE, USERNAME_DEFAULT)!!
-    private fun getPrefPassword(): String = preferences.getString(PASSWORD_TITLE, PASSWORD_DEFAULT)!!
-    private fun getPrefApiKey(): String = preferences.getString(APIKEY, APIKEY_DEFAULT)!!
+    // private fun getPrefUsername(): String = preferences.getString(USERNAME_TITLE, USERNAME_DEFAULT)!!
+    // private fun getPrefPassword(): String = preferences.getString(PASSWORD_TITLE, PASSWORD_DEFAULT)!!
+    // private fun getPrefApiKey(): String = preferences.getString(APIKEY, APIKEY_DEFAULT)!!
     private fun getPrefToken(): String = preferences.getString(BEARERTOKEN, BEARERTOKEN_DEFAULT)!!
 
     companion object {
@@ -408,12 +401,12 @@ class Kavita : ConfigurableSource, HttpSource() {
         private const val ADDRESS_DEFAULT = "https://demo.kavitareader.com/api"
         private const val PORT_TITLE = "Server Port Number"
         private const val PORT_DEFAULT = "80"
-        private const val USERNAME_TITLE = "Username"
-        private const val USERNAME_DEFAULT = "demouser"
-        private const val PASSWORD_TITLE = "Password"
-        private const val PASSWORD_DEFAULT = "Demouser64"
-        private const val APIKEY = "apiKey"
-        private const val APIKEY_DEFAULT = ""
+        // private const val USERNAME_TITLE = "Username"
+        // private const val USERNAME_DEFAULT = "demouser"
+        // private const val PASSWORD_TITLE = "Password"
+        // private const val PASSWORD_DEFAULT = "Demouser64"
+        // private const val APIKEY = "apiKey"
+        // private const val APIKEY_DEFAULT = ""
         private const val BEARERTOKEN = "Token"
         private const val BEARERTOKEN_DEFAULT = ""
         // private const val PASSWORD_DEFAULT = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiJkZW1vdXNlciIsInJvbGUiOiJQbGViIiwibmJmIjoxNjM5MDA0NzQzLCJleHAiOjE2Mzk2MDk1NDMsImlhdCI6MTYzOTAwNDc0M30.NiMpyBuC-VLDiSZ22EYn9T0Hyl8nE9mM37pl_4FTYNtsLLVzhZzbg0rQMLGKiW0SyWXBp-h4BcuFNYXSl5kknA"

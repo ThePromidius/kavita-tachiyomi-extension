@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.extension.all.kavita.dto
 
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.serialization.Serializable
-import java.util.*
 
 @Serializable
 data class UserParams(
@@ -84,10 +83,24 @@ data class VolumeDto(
     val name: String,
     val pages: Int,
     val pagesRead: Int,
-    val lastModified: String
+    val lastModified: String,
     val created: String,
     val seriesId: Int,
-    val chapters: List<AggregateChapter> = emptyList()
+    val chapters: List<ChapterDto> = emptyList()
+)
+
+@Serializable
+data class ChapterDto(
+    val id: Int,
+    val range: String,
+    val number: String,
+    val pages: Int,
+    val isSpecial: Boolean,
+    val title: String,
+    val pagesRead: Int,
+    val coverImageLocked: Boolean,
+    val volumeId: Int,
+    val created: String
 )
 
 abstract class KavitaManga : SManga {

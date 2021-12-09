@@ -37,10 +37,14 @@ class KavitaHelper {
         return hasNextPage
     }
 
+    fun getIdFromUrl(url: String): Int {
+        return url.split("/").last().toInt()
+    }
+
     fun createSeriesDto(obj: SeriesDto, baseUrl: String): SManga =
         SManga.create().apply {
-            println("createSeriesDto")
-            println(obj)
+//            println("createSeriesDto")
+//            println(obj)
             url = "$baseUrl/Series/${obj.id}"
             title = obj.name
             // artist = obj.artist

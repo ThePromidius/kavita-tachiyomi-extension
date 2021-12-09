@@ -37,7 +37,7 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override fun popularMangaRequest(page: Int): Request {
         println("popularMangaRequest Page: $page")
-        var pageNum = helper.convertPagination(page)
+        val pageNum = helper.convertPagination(page)
 
         return POST(
             "$baseUrl/series/all?pageNumber=$pageNum&libraryId=0&pageSize=20",
@@ -48,7 +48,6 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     // Our popular manga are just our library of manga
     override fun popularMangaParse(response: Response): MangasPage {
-        println("popularMangaParse")
         if (response.isSuccessful.not()) {
             println("Exception")
             throw Exception("HTTP ${response.code}")
@@ -56,19 +55,32 @@ class Kavita : ConfigurableSource, HttpSource() {
 
         val result = response.parseAs<List<SeriesDto>>()
         series = result
-        var mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }
+        val mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }
         return MangasPage(mangaList, helper.hasNextPage(response))
     }
 
-    /**
-     * LATES UPDATES UNUSED MANGA
-     * **/
-    override fun latestUpdatesRequest(page: Int): Request =
-        // TODO: Recently-added
-        throw UnsupportedOperationException("Not used")
+    override fun latestUpdatesRequest(page: Int): Request {
+        println("latestUpdatesRequest Page: $page")
+        val pageNum = helper.convertPagination(page)
 
-    override fun latestUpdatesParse(response: Response): MangasPage =
-        throw UnsupportedOperationException("Not used")
+        return POST(
+            "$baseUrl/series/recently-added?pageNumber=$pageNum&libraryId=0&pageSize=20",
+            headersBuilder().build(),
+            buildFilterBody()
+        )
+    }
+
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        if (response.isSuccessful.not()) {
+            println("Exception")
+            throw Exception("HTTP ${response.code}")
+        }
+
+        val result = response.parseAs<List<SeriesDto>>()
+        series = result
+        val mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }
+        return MangasPage(mangaList, helper.hasNextPage(response))
+    }
 
     /**
      * SEARCH MANGA NOT IMPLEMENTED YET SURELY THROWS EXCEPTION
@@ -126,28 +138,24 @@ class Kavita : ConfigurableSource, HttpSource() {
         throw UnsupportedOperationException("Not used")
 
     /**
-     * MANGA DETAILS
+     * MANGA DETAILS (metadata about series)
      * **/
     override fun mangaDetailsRequest(manga: SManga): Request {
         println("mangaDetailsRequest")
         println(manga.url)
 
-        return GET("$baseUrl/series/metadata?seriesId=${getIdFromImageUrl(manga.url)}", headersBuilder().build())
-    }
-
-    private fun getIdFromImageUrl(url: String): Int {
-        return url.split("/").last().toInt()
+        return GET("$baseUrl/series/metadata?seriesId=${helper.getIdFromUrl(manga.url)}", headersBuilder().build())
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
         println("mangaDetailsParse")
         // This is metadata
         val result = response.parseAs<SeriesMetadataDto>()
-        var existingSeries = series.find { dto -> dto.id == result.seriesId }
+        val existingSeries = series.find { dto -> dto.id == result.seriesId }
 
         if (existingSeries != null) {
             println("Found existing series")
-            var manga = helper.createSeriesDto(existingSeries, baseUrl)
+            val manga = helper.createSeriesDto(existingSeries, baseUrl)
             manga.artist = result.artists.joinToString { ", " }
             manga.author = result.writers.joinToString { ", " }
             manga.genre = result.genres.joinToString { ", " }
@@ -155,11 +163,11 @@ class Kavita : ConfigurableSource, HttpSource() {
         }
 
         return SManga.create().apply {
-            url = "$baseUrl/Series/${result.id}"
+            url = "$baseUrl/Series/${result.seriesId}"
             artist = result.artists.joinToString { ", " }
             author = result.writers.joinToString { ", " }
             genre = result.genres.joinToString { ", " }
-            thumbnail_url = "$baseUrl/image/series-cover?seriesId=${result.id}"
+            thumbnail_url = "$baseUrl/image/series-cover?seriesId=${result.seriesId}"
         }
     }
 
@@ -168,26 +176,50 @@ class Kavita : ConfigurableSource, HttpSource() {
      * CHAPTER LIST
      * **/
     override fun chapterListRequest(manga: SManga): Request {
-        val url = "$baseUrl/Series/volumes?seriesId=${getIdFromImageUrl(manga.url)}"
+        val url = "$baseUrl/Series/volumes?seriesId=${helper.getIdFromUrl(manga.url)}"
         return GET(url, headersBuilder().build())
     }
 
-    private fun chapterFromObject(obj: AggregateChapter): SChapter = SChapter.create().apply {
+    private fun chapterFromObject(obj: ChapterDto): SChapter = SChapter.create().apply {
+        println("Chapter")
+        println(obj)
         url = obj.id.toString()
-        name = "Chapter ${obj.range}"
+        if (obj.number == "0" && obj.isSpecial) {
+            name = obj.range
+        } else {
+            name = "Chapter ${obj.number}"
+        }
         date_upload = helper.parseDate(obj.created)
         chapter_number = obj.number.toFloat()
         scanlator = obj.pages.toString()
     }
 
-    private fun chapterFromVolume(obj: AggregateChapter): SChapter = SChapter.create().apply {
-        url = obj.id.toString()
-        if (obj.number == "0" && obj.isSpecial) {
-            name = obj.range
+    private fun chapterFromVolume(obj: ChapterDto, volume: VolumeDto): SChapter = SChapter.create().apply {
+//        println("Volume")
+//        println(volume)
+//        println("Chapter")
+//        println(obj)
+
+        // If there are multiple chapters to this volume, then prefix with Volume number
+        if (volume.chapters.isNotEmpty() && obj.number != "0") {
+            name = "Volume ${volume.number} Chapter ${obj.number}"
+        } else if (obj.number == "0") {
+            // This chapter is solely on volume
+            if (volume.number == 0) {
+                // Treat as special
+                if (obj.range == "") {
+                    name = "Chapter 0"
+                } else {
+                    name = obj.range
+                }
+            } else {
+                name = "Volume ${obj.number}"
+            }
         } else {
-            name = "Volume ${obj.number}"
+            name = "Unhandled Else Volume ${obj.number}"
         }
 
+        url = obj.id.toString()
         date_upload = helper.parseDate(obj.created)
         chapter_number = obj.number.toFloat()
         scanlator = obj.pages.toString()
@@ -201,21 +233,18 @@ class Kavita : ConfigurableSource, HttpSource() {
 
             val allChapterList = mutableListOf<SChapter>()
 
-            // Goal: Flatten volumes into Chapters, sort specials, volumes, regular chapters
-            // To accomplish flattening, volumes will have their individual chapters labelled Volume Number.Chapter Number
-
-            val mangaList = volumes.map {
-
-                print("Transforming volume from ")
-                println(it)
-                if (it.name == "0") {
-                    // These are just chapters
-                    it.chapters.map {
-                        allChapterList.add(chapterFromVolume(it))
-                    }
-                } else {
-                    it.chapters.map {
-                        allChapterList.add(chapterFromObject(it))
+            volumes.forEach { volume ->
+                run {
+                    if (volume.number == 0) {
+                        // Regular chapters
+                        volume.chapters.map {
+                            allChapterList.add(chapterFromObject(it))
+                        }
+                    } else {
+                        // Volume chapter
+                        volume.chapters.map {
+                            allChapterList.add(chapterFromVolume(it, volume))
+                        }
                     }
                 }
             }

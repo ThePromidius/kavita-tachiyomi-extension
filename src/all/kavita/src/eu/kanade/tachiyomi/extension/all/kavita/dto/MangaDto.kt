@@ -1,7 +1,8 @@
 package eu.kanade.tachiyomi.extension.all.kavita.dto
 
-import kotlinx.serialization.SerialName
+import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.serialization.Serializable
+import java.util.*
 
 @Serializable
 data class UserParams(
@@ -31,23 +32,23 @@ data class LibraryDto(
     val type: Int
 )
 
-@Serializable
-data class KavitaComicsDto(
-    val id: Int,
-    @SerialName("name") val title: String,
-    val thumbnail_url: String? = "",
-    @SerialName("summary") val description: String? = ""
+// @Serializable
+// data class SeriesDto(
+//    val id: Int,
+//    @SerialName("name") val title: String,
+//    val thumbnail_url: String? = "",
+//    @SerialName("summary") val description: String? = ""
+// )
 
-)
 @Serializable
-data class KavitaComicsDetailsDto(
+data class SeriesDto(
     val id: Int,
     val name: String,
     val originalName: String = "",
     val thumbnail_url: String? = "",
     val localizedName: String? = "",
     val sortName: String? = "",
-    val summary: String? = "This is summary",
+    val summary: String? = "",
     val pages: Int,
     val coverImageLocked: Boolean = true,
     val pagesRead: Int,
@@ -57,12 +58,18 @@ data class KavitaComicsDetailsDto(
     val created: String? = "",
     val libraryId: Int,
     val libraryName: String? = ""
-
 )
 
 @Serializable
-data class AuthenticationDto(
-    val username: String,
-    val token: String,
-    val apiKey: String
+data class VolumeDto(
+    val id: Int,
+    val number: Int,
+    val name: String,
+    val pages: Int,
+    val pagesRead: Int,
+    val lastModified: String
 )
+
+abstract class KavitaManga : SManga {
+    abstract val id: Int
+}

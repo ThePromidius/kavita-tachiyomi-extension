@@ -35,14 +35,8 @@ class Kavita : ConfigurableSource, HttpSource() {
     private var libraries = emptyList<LibraryDto>()
 
     override fun popularMangaRequest(page: Int): Request {
-        //    return GET("$baseUrl/browse?sort=views_w&page=$page")
         println("popularMangaRequest Page: $page")
-
-        var pageNum = page - 1
-        if (pageNum < 0) pageNum = 0
-        println("Calling: $baseUrl/series/all?pageNumber=$pageNum&libraryId=0&pageSize=20")
-        print("Build Filter Body: ")
-        println(buildFilterBody())
+        var pageNum = helper.convertPagination(page)
 
         return POST(
             "$baseUrl/series/all?pageNumber=$pageNum&libraryId=0&pageSize=20",
@@ -59,7 +53,7 @@ class Kavita : ConfigurableSource, HttpSource() {
             throw Exception("HTTP ${response.code}")
         }
 
-        val result = response.parseAs<List<KavitaComicsDto>>()
+        val result = response.parseAs<List<SeriesDto>>()
 
         /** KavitaComicsDto:
          val id: Int,
@@ -73,20 +67,9 @@ class Kavita : ConfigurableSource, HttpSource() {
         /**
          * Create list of SManga with values from KavitaComicsDto
          */
-        val mangaList = result.map(::popularMangaFromObject)
-        // mangaList provides a proper list of SManga
+        val mangaList = result.map(::createSeriesDto)
 
-        return MangasPage(mangaList, false)
-    }
-
-    private fun popularMangaFromObject(obj: KavitaComicsDto): SManga = SManga.create().apply {
-        title = obj.title
-        thumbnail_url = "$baseUrl/Image/series-cover?seriesId=${obj.id}"
-        println("url")
-        println(thumbnail_url)
-        description = obj.description
-        println(obj.description)
-        url = "${obj.id}"
+        return MangasPage(mangaList, helper.hasNextPage(response))
     }
 
     /**
@@ -159,56 +142,26 @@ class Kavita : ConfigurableSource, HttpSource() {
      * **/
     override fun mangaDetailsRequest(manga: SManga): Request {
         println("mangaDetailsRequest")
-        println(baseUrl)
-        println(manga.url)
-
-        return GET("$baseUrl/Series/${manga.url}", headersBuilder().build())
+        return GET(manga.url, headersBuilder().build())
     }
 
-    // This will just return the same thing as the main library endpoint
-    private fun mangaDetailsFromObject(obj: KavitaComicsDetailsDto): SManga =
-        SManga.create().apply {
-            println("mangaDetailsFromObject")
-            url = "/Series/${obj.id}"
-            title = obj.name
-            // artist = obj.artist
-            // author = obj.author
-            // description = obj.summary
-            description = "This is description"
-            // genre = obj.genres.joinToString(", ")
-            // status = obj.status
-            thumbnail_url = obj.thumbnail_url
-        }
+    private fun getIdFromImageUrl(url: String): Int {
+        return url.split("/").last().toInt()
+    }
 
     override fun mangaDetailsParse(response: Response): SManga {
         println("mangaDetailsParse")
-        // val jsonResponse = response
-
-        // println(Gson().toJson(jsonResponse.body!!.string()))
-        val result = response.parseAs<KavitaComicsDetailsDto>()
-        println(result.name)
-        val mangaDetails = mangaDetailsFromObject(result)
-        println(mangaDetails.description)
-        return mangaDetails
-
-        // helper.createManga(manga.data, fetchSimpleChapterList(manga, ""), "dexLang", "coverSuffix")
+        val result = response.parseAs<SeriesDto>()
+        return helper.createSeriesDto(result, baseUrl)
     }
-
-    /*override fun chapterListRequest(manga: SManga): Request =
-        GET(baseUrl + "/api" + manga.url + "?sort=auto", headers)*/
 
     // The chapter url will contain how many pages the chapter contains for our page list endpoint
     /**
      * CHAPTER LIST
      * **/
     override fun chapterListRequest(manga: SManga): Request {
-        val url = "$baseUrl/Series/volumes?seriesId=${manga.url}"
-
-        println("chapterListRequest")
-        println(url)
+        val url = "$baseUrl/Series/volumes?seriesId=${getIdFromImageUrl(manga.url)}"
         return GET(url, headersBuilder().build())
-
-        // return actualChapterListRequest(helper.getUUIDFromUrl(manga.url), 0)
     }
 
     private fun chapterFromObject(obj: AggregateChapter): SChapter = SChapter.create().apply {
@@ -221,7 +174,12 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     private fun chapterFromVolume(obj: AggregateChapter): SChapter = SChapter.create().apply {
         url = obj.id.toString()
-        name = "Volume ${obj.number}"
+        if (obj.number == "0" && obj.isSpecial) {
+            name = obj.range
+        } else {
+            name = "Volume ${obj.number}"
+        }
+
         date_upload = helper.parseDate(obj.created)
         chapter_number = obj.number.toFloat()
         scanlator = obj.pages.toString()
@@ -250,16 +208,6 @@ class Kavita : ConfigurableSource, HttpSource() {
                         allChapterList.add(chapterFromObject(it))
                     }
                 }
-
-//                it.chapters.map {
-//                    val pattern = """00?\.""".toRegex()
-//                    if (pattern.containsMatchIn(it.title) || it.pages> 5) {
-//                        val res = chapterFromObject(it)
-//                        allChapterList.add(res)
-//                    }
-//                }
-                // chapterFromObject(it.Map)
-                // allChapterList.add()
             }
             println(allChapterList)
             return allChapterList
@@ -269,10 +217,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             throw e
         }
     }
-
-    // val chapterListResults = mutableListOf<Map<String,AggregateChapter>>()
-
-    // return List<SChapter>(){}
 
     /**
      * ACTUAL IMAGE OF PAGES REQUEST
@@ -321,7 +265,6 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     override fun headersBuilder(): Headers.Builder {
-        /** Remember to add .build() at the end of headersBuilder()**/
         return Headers.Builder()
             .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")
             .add("Content-Type", "application/json")
@@ -329,12 +272,9 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     private fun buildFilterBody(): RequestBody {
-
         val payload = buildJsonObject {
             put("mangaFormat", MangaFormat.Archive.ordinal)
         }
-        print("body: ")
-        print(payload)
         return payload.toString().toRequestBody(JSON_MEDIA_TYPE)
     }
 
@@ -348,7 +288,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             .put("Authorization", "Bearer $jwtToken")
         println("Performing Authentication...")
         val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-        println("$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${URLEncoder.encode("Tachiyomi-Kavita", "utf-8")}")
         val request = POST("$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${URLEncoder.encode("Tachiyomi-Kavita", "utf-8")}", headersBuilder().build(), body)
 
         val response = chain.proceed(request)

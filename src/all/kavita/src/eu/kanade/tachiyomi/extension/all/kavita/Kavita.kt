@@ -17,6 +17,8 @@ import info.debatty.java.stringsimilarity.JaroWinkler
 import info.debatty.java.stringsimilarity.Levenshtein
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -39,6 +41,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         var pageNum = page - 1
         if (pageNum < 0) pageNum = 0
         println("Calling: $baseUrl/series/all?pageNumber=$pageNum&libraryId=0&pageSize=20")
+        print("Build Filter Body: ")
         println(buildFilterBody())
 
         return POST(
@@ -319,9 +322,6 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override fun headersBuilder(): Headers.Builder {
         /** Remember to add .build() at the end of headersBuilder()**/
-//        println("headersBuilder")
-//        println(jwtToken)
-//        println("------")
         return Headers.Builder()
             .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")
             .add("Content-Type", "application/json")
@@ -329,10 +329,13 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     private fun buildFilterBody(): RequestBody {
-        val jsonObject = JSONObject()
-        jsonObject.put("mangaFormat", MangaFormat.Archive)
-        return jsonObject.toString()
-            .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+
+        val payload = buildJsonObject {
+            put("mangaFormat", MangaFormat.Archive.ordinal)
+        }
+        print("body: ")
+        print(payload)
+        return payload.toString().toRequestBody(JSON_MEDIA_TYPE)
     }
 
     override val client: OkHttpClient =
@@ -438,5 +441,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         private const val APIKEY_DEFAULT = ""
         private const val BEARERTOKEN = "Token"
         private const val BEARERTOKEN_DEFAULT = ""
+
+        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
     }
 }

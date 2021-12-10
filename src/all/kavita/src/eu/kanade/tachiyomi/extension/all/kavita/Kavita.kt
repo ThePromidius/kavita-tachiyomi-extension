@@ -289,7 +289,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     /**
      * Base URL is the API address of the Kavita Server. Should end with /api
      */
-    override var baseUrl = "" // by lazy { getPrefBaseUrl() }
+    override var baseUrl = ""
 
     /**
      * Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
@@ -299,11 +299,11 @@ class Kavita : ConfigurableSource, HttpSource() {
     /**
      * JWT Token for authentication with the server. Stored in memory.
      */
-    private var jwtToken = "" // by lazy { getPrefToken() }
+    private var jwtToken = ""
     /**
      * API Key of the USer. This is parsed from Address
      */
-    private var apiKey = "" // by lazy { getPrefApiKey() }
+    private var apiKey = ""
     private val gson by lazy { Gson() }
     private val json: Json by injectLazy()
 
@@ -359,16 +359,6 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
     private fun authIntercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-
-        println("Address")
-        println(address)
-        println("BaseUrl")
-        println(baseUrl)
-        println("apiKey")
-        println(apiKey)
-        println("JWT")
-        println(jwtToken)
-
         setupVariablesFromAddress()
 
         if (jwtToken.isEmpty()) {
@@ -383,12 +373,9 @@ class Kavita : ConfigurableSource, HttpSource() {
             throw IOException("You must setup the Address to communicate with Kavita")
         }
         val tokens = address.split("/opds/")
-        println(tokens)
         if (tokens.size != 2) {
             throw IOException("The Address is not correct. Please copy from User settings -> OPDS Url")
         }
-//        preferences.edit().putString(BASEURL, tokens[0]).commit()
-//        preferences.edit().putString(API_KEY, tokens[1]).commit()
         apiKey = tokens[1]
         baseUrl = tokens[0]
     }
@@ -430,13 +417,6 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     // We strip the last slash since we will append it above
-    private fun getPrefBaseUrl(): String {
-        var path = preferences.getString(BASEURL, "")!!
-        if (path.isNotEmpty() && path.last() == '/') {
-            path = path.substring(0, path.length - 1)
-        }
-        return path
-    }
     private fun getPrefAddress(): String {
         var path = preferences.getString(ADDRESS_TITLE, "")!!
         if (path.isNotEmpty() && path.last() == '/') {
@@ -444,12 +424,9 @@ class Kavita : ConfigurableSource, HttpSource() {
         }
         return path
     }
-    private fun getPrefApiKey(): String = preferences.getString(API_KEY, "")!!
 
     companion object {
         private const val ADDRESS_TITLE = "Address"
-        private const val BASEURL = ""
-        private const val API_KEY = "API KEY"
 
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
     }

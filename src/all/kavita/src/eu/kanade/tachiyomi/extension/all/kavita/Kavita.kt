@@ -6,19 +6,35 @@ import android.text.InputType
 import android.widget.Toast
 import com.google.gson.Gson
 import eu.kanade.tachiyomi.BuildConfig
-import eu.kanade.tachiyomi.extension.all.kavita.dto.*
+import eu.kanade.tachiyomi.extension.all.kavita.dto.AuthenticationDto
+import eu.kanade.tachiyomi.extension.all.kavita.dto.ChapterDto
+import eu.kanade.tachiyomi.extension.all.kavita.dto.KavitaComicsSearch
+import eu.kanade.tachiyomi.extension.all.kavita.dto.LibraryDto
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MangaFormat
+import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesDto
+import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesMetadataDto
+import eu.kanade.tachiyomi.extension.all.kavita.dto.VolumeDto
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.ConfigurableSource
-import eu.kanade.tachiyomi.source.model.*
+import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
+import eu.kanade.tachiyomi.source.model.Page
+import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okhttp3.*
+import okhttp3.Headers
+import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONObject
 import rx.Observable
 import uy.kohesive.injekt.Injekt
@@ -333,7 +349,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
         screen.addPreference(screen.editTextPreference(ADDRESS_TITLE, ADDRESS_DEFAULT, "The URL to access your Kavita instance. Please include the port number if you didn't set up a reverse proxy")) // TODO("Check address. so support only domain/ip. Port could be on different user preference")
         screen.addPreference(screen.editTextPreference(APIKEY, "", "The API KEY copied from User Settings", true))
-        //screen.addPreference(screen.editTextPreference(BEARERTOKEN, "", "The API KEY copied from User Settings", true))
+        // screen.addPreference(screen.editTextPreference(BEARERTOKEN, "", "The API KEY copied from User Settings", true))
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(title: String, default: String, summary: String, isPassword: Boolean = false): androidx.preference.EditTextPreference {

@@ -26,20 +26,20 @@ class KavitaHelper {
     fun parseDate(dateAsString: String): Long =
         dateFormatter.parse(dateAsString)?.time ?: 0
 
-    fun convertPagination(page: Int): Int {
+    /*fun convertPagination(page: Int): Int {
         var pageNum = page - 1
         if (pageNum < 0) pageNum = 0
         return pageNum
-    }
+    }*/
 
     fun hasNextPage(response: Response): Boolean {
         var paginationHeader = response.header("Pagination")
         var hasNextPage = false
         if (!paginationHeader.isNullOrEmpty()) {
             var paginationInfo = json.decodeFromString<PaginationInfo>(paginationHeader)
-            hasNextPage = paginationInfo.currentPage < paginationInfo.totalPages
+            hasNextPage = paginationInfo.currentPage + 1 > paginationInfo.totalPages
         }
-        return hasNextPage
+        return !hasNextPage
     }
 
     fun getIdFromUrl(url: String): Int {

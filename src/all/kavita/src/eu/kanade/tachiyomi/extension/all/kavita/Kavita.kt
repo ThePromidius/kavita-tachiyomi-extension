@@ -50,10 +50,10 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override fun popularMangaRequest(page: Int): Request {
         println("popularMangaRequest Page: $page")
-        val pageNum = helper.convertPagination(page)
+        // val pageNum = helper.convertPagination(page)
 
         return POST(
-            "$baseUrl/series/all?pageNumber=$pageNum&libraryId=0&pageSize=20",
+            "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
             buildFilterBody()
         )
@@ -74,10 +74,10 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override fun latestUpdatesRequest(page: Int): Request {
         println("latestUpdatesRequest Page: $page")
-        val pageNum = helper.convertPagination(page)
+        // val pageNum = helper.convertPagination(page)
 
         return POST(
-            "$baseUrl/series/recently-added?pageNumber=$pageNum&libraryId=0&pageSize=20",
+            "$baseUrl/series/recently-added?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
             buildFilterBody()
         )
@@ -228,7 +228,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 }
             }
 
-            allChapterList.sortBy { chapter -> chapter.chapter_number }
+            allChapterList.reverse()
 
             println(allChapterList)
             return allChapterList
@@ -253,8 +253,9 @@ class Kavita : ConfigurableSource, HttpSource() {
         println(chapter)
         val chapterId = chapter.url
         val numPages = chapter.scanlator?.toInt()
+        var numPages2 = "$numPages".toInt() - 1
         val pages = mutableListOf<Page>()
-        for (i in 0..numPages!!) {
+        for (i in 0..numPages2!!) {
             pages.add(
                 Page(
                     index = i,

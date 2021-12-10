@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "artifactType": {
+    "type": "APK",
+    "kind": "Directory"
+  },
+  "applicationId": "eu.kanade.tachiyomi.extension.all.kavita",
+  "variantName": "release",
+  "elements": [
+    {
+      "type": "SINGLE",
+      "filters": [],
+      "versionCode": 2,
+      "versionName": "1.2.2",
+      "outputFile": "tachiyomi-all.kavita-v1.2.2-release.apk"
+    }
+  ]
+}

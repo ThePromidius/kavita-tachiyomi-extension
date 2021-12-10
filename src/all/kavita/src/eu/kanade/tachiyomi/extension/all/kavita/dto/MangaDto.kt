@@ -31,7 +31,6 @@ data class LibraryDto(
     val type: Int
 )
 
-
 @Serializable
 data class SeriesDto(
     val id: Int,
@@ -66,7 +65,6 @@ data class SeriesMetadataDto(
 @Serializable
 data class Person(
     val name: String,
-
 )
 
 @Serializable
@@ -99,6 +97,7 @@ data class ChapterDto(
 abstract class KavitaManga : SManga {
     abstract val id: Int
 }
+
 @Serializable
 data class KavitaComicsSearch(
     val seriesId: Int,

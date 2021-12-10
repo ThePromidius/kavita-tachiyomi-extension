@@ -25,6 +25,8 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Headers
@@ -298,9 +300,17 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     private fun buildFilterBody(): RequestBody {
-        val payload = buildJsonObject {
-            put("mangaFormat", MangaFormat.Image.ordinal)
+        val formats = buildJsonArray {
+            add(MangaFormat.Archive.ordinal)
+            add(MangaFormat.Image.ordinal)
+            add(MangaFormat.Pdf.ordinal)
         }
+
+        val payload = buildJsonObject {
+            put("formats", formats)
+        }
+        println(payload.toString())
+
         return payload.toString().toRequestBody(JSON_MEDIA_TYPE)
     }
 

@@ -62,7 +62,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         // val pageNum = helper.convertPagination(page)
 
         // Since this is the first call, we need this
-        setupVariablesFromAddress()
+        // setupVariablesFromAddress()
 
         return POST(
             "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
@@ -90,7 +90,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         println("latestUpdatesRequest Page: $page")
         // val pageNum = helper.convertPagination(page)
 
-        setupVariablesFromAddress()
+        // setupVariablesFromAddress()
         return POST(
             "$baseUrl/series/recently-added?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -115,7 +115,7 @@ class Kavita : ConfigurableSource, HttpSource() {
      * **/
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        setupVariablesFromAddress()
+        // setupVariablesFromAddress()
         return GET("$baseUrl/Library/search?queryString=$query", headers)
     }
     override fun searchMangaParse(response: Response): MangasPage {
@@ -138,7 +138,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun mangaDetailsRequest(manga: SManga): Request {
         println("mangaDetailsRequest")
         println(manga.url)
-        setupVariablesFromAddress()
+        // setupVariablesFromAddress()
         return GET("$baseUrl/series/metadata?seriesId=${helper.getIdFromUrl(manga.url)}", headersBuilder().build())
     }
 
@@ -171,7 +171,7 @@ class Kavita : ConfigurableSource, HttpSource() {
      * CHAPTER LIST
      * **/
     override fun chapterListRequest(manga: SManga): Request {
-        setupVariablesFromAddress()
+        // setupVariablesFromAddress()
         val url = "$baseUrl/Series/volumes?seriesId=${helper.getIdFromUrl(manga.url)}"
         return GET(url, headersBuilder().build())
     }
@@ -268,7 +268,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
         println("fetchPageList")
         println(chapter)
-        setupVariablesFromAddress()
+        // setupVariablesFromAddress()
         val chapterId = chapter.url
         val numPages = chapter.scanlator?.toInt()
         var numPages2 = "$numPages".toInt() - 1
@@ -300,7 +300,8 @@ class Kavita : ConfigurableSource, HttpSource() {
     /**
      * Base URL is the API address of the Kavita Server. Should end with /api
      */
-    override var baseUrl = ""
+
+    override val baseUrl by lazy { getPrefBaseUrl() }
 
     /**
      * Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
@@ -314,7 +315,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     /**
      * API Key of the USer. This is parsed from Address
      */
-    private var apiKey = ""
+    private val apiKey by lazy { getPrefapiKey() }
     private val gson by lazy { Gson() }
     private val json: Json by injectLazy()
 
@@ -368,6 +369,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         return requestSuccess
     }
     private fun authIntercept(chain: Interceptor.Chain): Response {
+        // setupVariablesFromAddress()
         val request = chain.request()
 
         if (jwtToken.isEmpty()) {
@@ -401,14 +403,15 @@ class Kavita : ConfigurableSource, HttpSource() {
         if (address.isEmpty()) {
             throw IOException("You must setup the Address to communicate with Kavita")
         }
-        if (apiKey.isEmpty() || baseUrl.isEmpty()) {
-            val tokens = address.split("/opds/")
-            if (tokens.size != 2) {
-                throw IOException("The Address is not correct. Please copy from User settings -> OPDS Url")
-            }
-            apiKey = tokens[1]
-            baseUrl = tokens[0]
+
+        val tokens = address.split("/opds/")
+        if (tokens.size != 2) {
+            throw IOException("The Address is not correct. Please copy from User settings -> OPDS Url")
         }
+        val apiKey = tokens[1]
+        val baseUrl = tokens[0]
+        preferences.edit().putString("APIKEY", apiKey).commit()
+        preferences.edit().putString("BASEURL", baseUrl).commit()
     }
 
     // Preference code
@@ -436,8 +439,8 @@ class Kavita : ConfigurableSource, HttpSource() {
             setOnPreferenceChangeListener { _, newValue ->
                 try {
                     val res = preferences.edit().putString(title, newValue as String).commit()
+                    setupVariablesFromAddress()
                     Toast.makeText(context, "Restart Tachiyomi to apply new setting.", Toast.LENGTH_LONG).show()
-
                     res
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -446,6 +449,8 @@ class Kavita : ConfigurableSource, HttpSource() {
             }
         }
     }
+    private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
+    private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
 
     // We strip the last slash since we will append it above
     private fun getPrefAddress(): String {

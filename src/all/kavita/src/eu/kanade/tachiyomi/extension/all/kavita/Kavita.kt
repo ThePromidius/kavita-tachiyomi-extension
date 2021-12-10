@@ -28,7 +28,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -54,6 +53,9 @@ class Kavita : ConfigurableSource, HttpSource() {
         println("popularMangaRequest Page: $page")
         val pageNum = helper.convertPagination(page)
 
+        // Since this is the first call, we need this
+        setupVariablesFromAddress()
+
         return POST(
             "$baseUrl/series/all?pageNumber=$pageNum&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -78,6 +80,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         println("latestUpdatesRequest Page: $page")
         val pageNum = helper.convertPagination(page)
 
+        setupVariablesFromAddress()
         return POST(
             "$baseUrl/series/recently-added?pageNumber=$pageNum&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -102,6 +105,7 @@ class Kavita : ConfigurableSource, HttpSource() {
      * **/
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        setupVariablesFromAddress()
         return GET("$baseUrl/Library/search?queryString=$query", headers)
     }
     override fun searchMangaParse(response: Response): MangasPage {
@@ -124,7 +128,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun mangaDetailsRequest(manga: SManga): Request {
         println("mangaDetailsRequest")
         println(manga.url)
-
+        setupVariablesFromAddress()
         return GET("$baseUrl/series/metadata?seriesId=${helper.getIdFromUrl(manga.url)}", headersBuilder().build())
     }
 
@@ -157,6 +161,7 @@ class Kavita : ConfigurableSource, HttpSource() {
      * CHAPTER LIST
      * **/
     override fun chapterListRequest(manga: SManga): Request {
+        setupVariablesFromAddress()
         val url = "$baseUrl/Series/volumes?seriesId=${helper.getIdFromUrl(manga.url)}"
         return GET(url, headersBuilder().build())
     }
@@ -253,6 +258,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
         println("fetchPageList")
         println(chapter)
+        setupVariablesFromAddress()
         val chapterId = chapter.url
         val numPages = chapter.scanlator?.toInt()
         val pages = mutableListOf<Page>()
@@ -277,13 +283,27 @@ class Kavita : ConfigurableSource, HttpSource() {
      * **/
     override fun getFilterList(): FilterList = FilterList()
 
-    private val LOG_TAG = "extension.all.kavita"
     override val name = "Kavita"
     override val lang = "all"
     override val supportsLatest = true
-    override val baseUrl by lazy { getPrefBaseUrl() }
-    private val jwtToken by lazy { getPrefToken() }
-    private val apiKey by lazy { getPrefApiKey() }
+    /**
+     * Base URL is the API address of the Kavita Server. Should end with /api
+     */
+    override var baseUrl = "" // by lazy { getPrefBaseUrl() }
+
+    /**
+     * Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
+     */
+    private val address by lazy { getPrefAddress() }
+
+    /**
+     * JWT Token for authentication with the server. Stored in memory.
+     */
+    private var jwtToken = "" // by lazy { getPrefToken() }
+    /**
+     * API Key of the USer. This is parsed from Address
+     */
+    private var apiKey = "" // by lazy { getPrefApiKey() }
     private val gson by lazy { Gson() }
     private val json: Json by injectLazy()
 
@@ -309,7 +329,6 @@ class Kavita : ConfigurableSource, HttpSource() {
         val payload = buildJsonObject {
             put("formats", formats)
         }
-        println(payload.toString())
 
         return payload.toString().toRequestBody(JSON_MEDIA_TYPE)
     }
@@ -320,9 +339,8 @@ class Kavita : ConfigurableSource, HttpSource() {
             .build()
 
     private fun authenticateAndSetToken(chain: Interceptor.Chain): Boolean {
-        val jsonObject = JSONObject()
-            .put("Authorization", "Bearer $jwtToken")
         println("Performing Authentication...")
+        val jsonObject = JSONObject()
         val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         val request = POST("$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${URLEncoder.encode("Tachiyomi-Kavita", "utf-8")}", headersBuilder().build(), body)
 
@@ -332,7 +350,7 @@ class Kavita : ConfigurableSource, HttpSource() {
             println("Authentication successful")
             val result = response.parseAs<AuthenticationDto>()
             if (result.token.isNotEmpty()) {
-                preferences.edit().putString(BEARERTOKEN, result.token).commit()
+                jwtToken = result.token
                 throw IOException("Restart Tachiyomi")
             }
         }
@@ -342,9 +360,17 @@ class Kavita : ConfigurableSource, HttpSource() {
     private fun authIntercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
 
-        if (apiKey.isEmpty()) {
-            throw IOException("An API KEY is required to authenticate with Kavita")
-        }
+        println("Address")
+        println(address)
+        println("BaseUrl")
+        println(baseUrl)
+        println("apiKey")
+        println(apiKey)
+        println("JWT")
+        println(jwtToken)
+
+        setupVariablesFromAddress()
+
         if (jwtToken.isEmpty()) {
             authenticateAndSetToken(chain)
         }
@@ -352,14 +378,27 @@ class Kavita : ConfigurableSource, HttpSource() {
         return chain.proceed(request)
     }
 
+    private fun setupVariablesFromAddress() {
+        if (address.isEmpty()) {
+            throw IOException("You must setup the Address to communicate with Kavita")
+        }
+        val tokens = address.split("/opds/")
+        println(tokens)
+        if (tokens.size != 2) {
+            throw IOException("The Address is not correct. Please copy from User settings -> OPDS Url")
+        }
+//        preferences.edit().putString(BASEURL, tokens[0]).commit()
+//        preferences.edit().putString(API_KEY, tokens[1]).commit()
+        apiKey = tokens[1]
+        baseUrl = tokens[0]
+    }
+
     // Preference code
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
-        screen.addPreference(screen.editTextPreference(ADDRESS_TITLE, ADDRESS_DEFAULT, "The URL to access your Kavita instance. Please include the port number if you didn't set up a reverse proxy")) // TODO("Check address. so support only domain/ip. Port could be on different user preference")
-        screen.addPreference(screen.editTextPreference(APIKEY, "", "The API KEY copied from User Settings", true))
-        // screen.addPreference(screen.editTextPreference(BEARERTOKEN, "", "The API KEY copied from User Settings", true))
+        screen.addPreference(screen.editTextPreference(ADDRESS_TITLE, "", "The OPDS url copied from User Settings. This should include address and the api key on end."))
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(title: String, default: String, summary: String, isPassword: Boolean = false): androidx.preference.EditTextPreference {
@@ -392,22 +431,25 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     // We strip the last slash since we will append it above
     private fun getPrefBaseUrl(): String {
-        var path = preferences.getString(ADDRESS_TITLE, ADDRESS_DEFAULT)!!
+        var path = preferences.getString(BASEURL, "")!!
         if (path.isNotEmpty() && path.last() == '/') {
             path = path.substring(0, path.length - 1)
         }
         return path
     }
-    private fun getPrefApiKey(): String = preferences.getString(APIKEY, APIKEY_DEFAULT)!!
-    private fun getPrefToken(): String = preferences.getString(BEARERTOKEN, BEARERTOKEN_DEFAULT)!!
+    private fun getPrefAddress(): String {
+        var path = preferences.getString(ADDRESS_TITLE, "")!!
+        if (path.isNotEmpty() && path.last() == '/') {
+            path = path.substring(0, path.length - 1)
+        }
+        return path
+    }
+    private fun getPrefApiKey(): String = preferences.getString(API_KEY, "")!!
 
     companion object {
         private const val ADDRESS_TITLE = "Address"
-        private const val ADDRESS_DEFAULT = "https://demo.kavitareader.com/api"
-        private const val APIKEY = "API KEY"
-        private const val APIKEY_DEFAULT = ""
-        private const val BEARERTOKEN = "Token"
-        private const val BEARERTOKEN_DEFAULT = ""
+        private const val BASEURL = ""
+        private const val API_KEY = "API KEY"
 
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
     }

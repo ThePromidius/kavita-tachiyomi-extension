@@ -17,6 +17,8 @@ import info.debatty.java.stringsimilarity.JaroWinkler
 import info.debatty.java.stringsimilarity.Levenshtein
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -26,69 +28,59 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.io.IOException
+import java.net.URLEncoder
 
 class Kavita : ConfigurableSource, HttpSource() {
 
-    /**
-     * POPULAR MANGA
-     * **/
+    private var libraries = emptyList<LibraryDto>()
+    private var series = emptyList<SeriesDto>()
+
     override fun popularMangaRequest(page: Int): Request {
-        //    return GET("$baseUrl/browse?sort=views_w&page=$page")
-        println("Popular Request")
-        println()
+        println("popularMangaRequest Page: $page")
+        val pageNum = helper.convertPagination(page)
+
         return POST(
-            "$baseUrl/Series/recently-added?PageNumber=$page&libraryId=0",
+            "$baseUrl/series/all?pageNumber=$pageNum&libraryId=0&pageSize=20",
             headersBuilder().build(),
-            tokenBodyBuilder()
+            buildFilterBody()
         )
     }
 
     // Our popular manga are just our library of manga
     override fun popularMangaParse(response: Response): MangasPage {
-        println("Popular Parse")
         if (response.isSuccessful.not()) {
             println("Exception")
             throw Exception("HTTP ${response.code}")
         }
 
-        val result = response.parseAs<List<KavitaComicsDto>>()
-
-        /** KavitaComicsDto:
-         val id: Int,
-         val url: String,
-         @SerialName("name") val title: String,
-         // Api doesnt provides thumbnail url but it will -> WIP placeholder:
-         val thumbnail_url: String? = "http://192.168.0.135:5000/api/image/series-cover?seriesId=14",
-         @SerialName("summary") val description: String
-         **/
-
-        /**
-         * Create list of SManga with values from KavitaComicsDto
-         */
-        val mangaList = result.map(::popularMangaFromObject)
-        // mangaList provides a proper list of SManga
-
-        return MangasPage(mangaList, false)
+        val result = response.parseAs<List<SeriesDto>>()
+        series = result
+        val mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }
+        return MangasPage(mangaList, helper.hasNextPage(response))
     }
 
-    private fun popularMangaFromObject(obj: KavitaComicsDto): SManga = SManga.create().apply {
-        title = obj.title
-        thumbnail_url = "$baseUrl/Image/series-cover?seriesId=${obj.id}"
-        println("url")
-        println(thumbnail_url)
-        description = obj.description
-        println(obj.description)
-        url = "${obj.id}"
+    override fun latestUpdatesRequest(page: Int): Request {
+        println("latestUpdatesRequest Page: $page")
+        val pageNum = helper.convertPagination(page)
+
+        return POST(
+            "$baseUrl/series/recently-added?pageNumber=$pageNum&libraryId=0&pageSize=20",
+            headersBuilder().build(),
+            buildFilterBody()
+        )
     }
 
-    /**
-     * LATES UPDATES UNUSED MANGA
-     * **/
-    override fun latestUpdatesRequest(page: Int): Request =
-        throw UnsupportedOperationException("Not used")
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        if (response.isSuccessful.not()) {
+            println("Exception")
+            throw Exception("HTTP ${response.code}")
+        }
 
-    override fun latestUpdatesParse(response: Response): MangasPage =
-        throw UnsupportedOperationException("Not used")
+        val result = response.parseAs<List<SeriesDto>>()
+        series = result
+        val mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }
+        return MangasPage(mangaList, helper.hasNextPage(response))
+    }
 
     /**
      * SEARCH MANGA NOT IMPLEMENTED YET SURELY THROWS EXCEPTION
@@ -146,92 +138,119 @@ class Kavita : ConfigurableSource, HttpSource() {
         throw UnsupportedOperationException("Not used")
 
     /**
-     * MANGA DETAILS
+     * MANGA DETAILS (metadata about series)
      * **/
     override fun mangaDetailsRequest(manga: SManga): Request {
         println("mangaDetailsRequest")
-        println(baseUrl)
         println(manga.url)
 
-        return GET("$baseUrl/Series/${manga.url}", headersBuilder().build())
+        return GET("$baseUrl/series/metadata?seriesId=${helper.getIdFromUrl(manga.url)}", headersBuilder().build())
     }
-
-    // This will just return the same thing as the main library endpoint
-    private fun mangaDetailsFromObject(obj: KavitaComicsDetailsDto): SManga =
-        SManga.create().apply {
-            println("mangaDetailsFromObject")
-            url = "/Series/${obj.id}"
-            title = obj.name
-            // artist = obj.artist
-            // author = obj.author
-            // description = obj.summary
-            description = "This is description"
-            // genre = obj.genres.joinToString(", ")
-            // status = obj.status
-            thumbnail_url = obj.thumbnail_url
-        }
 
     override fun mangaDetailsParse(response: Response): SManga {
         println("mangaDetailsParse")
-        // val jsonResponse = response
+        // This is metadata
+        val result = response.parseAs<SeriesMetadataDto>()
+        val existingSeries = series.find { dto -> dto.id == result.seriesId }
 
-        // println(Gson().toJson(jsonResponse.body!!.string()))
-        val result = response.parseAs<KavitaComicsDetailsDto>()
-        println(result.name)
-        val mangaDetails = mangaDetailsFromObject(result)
-        println(mangaDetails.description)
-        return mangaDetails
+        if (existingSeries != null) {
+            println("Found existing series")
+            val manga = helper.createSeriesDto(existingSeries, baseUrl)
+            manga.artist = result.artists.joinToString { ", " }
+            manga.author = result.writers.joinToString { ", " }
+            manga.genre = result.genres.joinToString { ", " }
+            return manga
+        }
 
-        // helper.createManga(manga.data, fetchSimpleChapterList(manga, ""), "dexLang", "coverSuffix")
+        return SManga.create().apply {
+            url = "$baseUrl/Series/${result.seriesId}"
+            artist = result.artists.joinToString { ", " }
+            author = result.writers.joinToString { ", " }
+            genre = result.genres.joinToString { ", " }
+            thumbnail_url = "$baseUrl/image/series-cover?seriesId=${result.seriesId}"
+        }
     }
-
-    /*override fun chapterListRequest(manga: SManga): Request =
-        GET(baseUrl + "/api" + manga.url + "?sort=auto", headers)*/
 
     // The chapter url will contain how many pages the chapter contains for our page list endpoint
     /**
      * CHAPTER LIST
      * **/
     override fun chapterListRequest(manga: SManga): Request {
-        val url = "$baseUrl/Series/volumes?seriesId=${manga.url}"
-
-        println("chapterListRequest")
-        println(url)
+        val url = "$baseUrl/Series/volumes?seriesId=${helper.getIdFromUrl(manga.url)}"
         return GET(url, headersBuilder().build())
-
-        // return actualChapterListRequest(helper.getUUIDFromUrl(manga.url), 0)
     }
 
-    private fun chapterFromObject(obj: AggregateChapter): SChapter = SChapter.create().apply {
+    private fun chapterFromObject(obj: ChapterDto): SChapter = SChapter.create().apply {
+        println("Chapter")
+        println(obj)
         url = obj.id.toString()
-        name = "Chapter ${obj.range}"
+        if (obj.number == "0" && obj.isSpecial) {
+            name = obj.range
+        } else {
+            name = "Chapter ${obj.number}"
+        }
         date_upload = helper.parseDate(obj.created)
         chapter_number = obj.number.toFloat()
         scanlator = obj.pages.toString()
     }
 
-    /*import java.text.SimpleDateFormat
-    import java.util.Locale
-    import java.util.TimeZone*/
+    private fun chapterFromVolume(obj: ChapterDto, volume: VolumeDto): SChapter = SChapter.create().apply {
+//        println("Volume")
+//        println(volume)
+//        println("Chapter")
+//        println(obj)
+
+        // If there are multiple chapters to this volume, then prefix with Volume number
+        if (volume.chapters.isNotEmpty() && obj.number != "0") {
+            name = "Volume ${volume.number} Chapter ${obj.number}"
+        } else if (obj.number == "0") {
+            // This chapter is solely on volume
+            if (volume.number == 0) {
+                // Treat as special
+                if (obj.range == "") {
+                    name = "Chapter 0"
+                } else {
+                    name = obj.range
+                }
+            } else {
+                name = "Volume ${obj.number}"
+            }
+        } else {
+            name = "Unhandled Else Volume ${obj.number}"
+        }
+
+        url = obj.id.toString()
+        date_upload = helper.parseDate(obj.created)
+        chapter_number = obj.number.toFloat()
+        scanlator = obj.pages.toString()
+    }
+
     override fun chapterListParse(response: Response): List<SChapter> {
         println("chapterListParse")
         try {
 
-            val result = response.parseAs<List<AggregateVolume>>()
+            val volumes = response.parseAs<List<VolumeDto>>()
 
             val allChapterList = mutableListOf<SChapter>()
-            val mangaList = result.map {
-                //
-                it.chapters.map {
-                    val pattern = """00?\.""".toRegex()
-                    if (pattern.containsMatchIn(it.title) || it.pages> 5) {
-                        val res = chapterFromObject(it)
-                        allChapterList.add(res)
+
+            volumes.forEach { volume ->
+                run {
+                    if (volume.number == 0) {
+                        // Regular chapters
+                        volume.chapters.map {
+                            allChapterList.add(chapterFromObject(it))
+                        }
+                    } else {
+                        // Volume chapter
+                        volume.chapters.map {
+                            allChapterList.add(chapterFromVolume(it, volume))
+                        }
                     }
                 }
-                // chapterFromObject(it.Map)
-                // allChapterList.add()
             }
+
+            allChapterList.sortBy { chapter -> chapter.chapter_number }
+
             println(allChapterList)
             return allChapterList
         } catch (e: Exception) {
@@ -241,17 +260,18 @@ class Kavita : ConfigurableSource, HttpSource() {
         }
     }
 
-    // val chapterListResults = mutableListOf<Map<String,AggregateChapter>>()
-
-    // return List<SChapter>(){}
-
     /**
      * ACTUAL IMAGE OF PAGES REQUEST
      * **/
-    override fun pageListRequest(chapter: SChapter): Request =
-        throw UnsupportedOperationException("Not used")
+    override fun pageListRequest(chapter: SChapter): Request {
+        println("pageListRequest")
+        println(chapter)
+        return GET("${chapter.url}/Reader/chapter-info")
+    }
 
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
+        println("fetchPageList")
+        println(chapter)
         val chapterId = chapter.url
         val numPages = chapter.scanlator?.toInt()
         val pages = mutableListOf<Page>()
@@ -276,18 +296,12 @@ class Kavita : ConfigurableSource, HttpSource() {
      * **/
     override fun getFilterList(): FilterList = FilterList()
 
+    private val LOG_TAG = "extension.all.kavita"
     override val name = "Kavita"
     override val lang = "all"
     override val supportsLatest = false
-
-    /**
-     * SOME USEFUL VARS
-     * **/
     override val baseUrl by lazy { getPrefBaseUrl() }
-    private val port by lazy { getPrefPort() }
-    private val username by lazy { getPrefUsername() }
-    private val password by lazy { getPrefPassword() }
-    private val JWTtoken by lazy { getPrefToken() }
+    private val jwtToken by lazy { getPrefToken() }
     private val apiKey by lazy { getPrefApiKey() }
     private val gson by lazy { Gson() }
     private val json: Json by injectLazy()
@@ -298,109 +312,65 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     override fun headersBuilder(): Headers.Builder {
-        /** Remember to add .build() at the end of headersBuilder()**/
-        println("headersBuilder")
-        println(JWTtoken)
-        println("------")
         return Headers.Builder()
             .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")
-            .add("Authorization", "Bearer $JWTtoken")
+            .add("Content-Type", "application/json")
+            .add("Authorization", "Bearer $jwtToken")
     }
 
-    private fun tokenBodyBuilder(): RequestBody {
-
-        val jsonObject = JSONObject()
-        jsonObject.put("mangaFormat", 0)
-        return jsonObject.toString()
-            .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-    }
-
-    /**
-     * PREFERENCES SETUP
-     * **/
-
-    private val preferences: SharedPreferences by lazy {
-        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    private fun buildFilterBody(): RequestBody {
+        val payload = buildJsonObject {
+            put("mangaFormat", MangaFormat.Archive.ordinal)
+        }
+        return payload.toString().toRequestBody(JSON_MEDIA_TYPE)
     }
 
     override val client: OkHttpClient =
         network.client.newBuilder()
             .addInterceptor { authIntercept(it) }
             .build()
-    private fun isValidToken(chain: Interceptor.Chain): Boolean {
-        val jsonObject = JSONObject()
-            .put("Authorization", "Bearer $JWTtoken")
-        // ("""{"Authorization":"Bearer $JWTtoken"}""")
 
+    private fun authenticateAndSetToken(chain: Interceptor.Chain): Boolean {
+        val jsonObject = JSONObject()
+            .put("Authorization", "Bearer $jwtToken")
+        println("Performing Authentication...")
         val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-        println("$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=Tachiyomi-Kavita")
-        val request = POST("$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=Tachiyomi-Kavita", headersBuilder().build(), body)
+        val request = POST("$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${URLEncoder.encode("Tachiyomi-Kavita", "utf-8")}", headersBuilder().build(), body)
 
         val response = chain.proceed(request)
         val requestSuccess = response.code == 200
-        println(response.code)
-        println("requestSuccess: " + requestSuccess)
+        if (requestSuccess) {
+            println("Authentication successful")
+            val result = response.parseAs<AuthenticationDto>()
+            if (result.token.isNotEmpty()) {
+                preferences.edit().putString(BEARERTOKEN, result.token).commit()
+                throw IOException("Restart Tachiyomi")
+            }
+        }
         response.close()
         return requestSuccess
     }
     private fun authIntercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
 
-        if (username.isEmpty() || password.isEmpty()) { // If there is no password or username in preferences:
-            val res = preferences.edit().putString(APIKEY, "").commit()
-            val res2 = preferences.edit().putString(BEARERTOKEN, "").commit()
-
-            throw IOException("Token deleted:Missing username or password")
+        if (apiKey.isEmpty()) {
+            throw IOException("An API KEY is required to authenticate with Kavita")
         }
-
-        if (JWTtoken.isEmpty()) { // If there is no token stored in preferences:
-            doLogin(chain)
-        }
-        if (isValidToken(chain)) {
-            println("True valid token")
-            return chain.proceed(request)
-        } else {
-            doLogin(chain)
+        if (jwtToken.isEmpty()) {
+            authenticateAndSetToken(chain)
         }
 
         return chain.proceed(request)
     }
 
-    private fun doLogin(chain: Interceptor.Chain) {
-        val formHeaders: Headers = headersBuilder()
-            .add("ContentType", "application/x-www-form-urlencoded")
-            .build()
-        val jsonObject = JSONObject() // Create JSON to send in a POST
-        jsonObject.put("username", username)
-        jsonObject.put("password", password)
-
-        val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-
-        val loginRequest = POST("$baseUrl/Account/login", formHeaders, body)
-        val response = chain.proceed(loginRequest)
-        if (response.code == 200) {
-            val result = response.parseAs<Login>() // Serialize Login Response
-
-            if (result.token.isNotEmpty()) {
-                /*println(result.token)
-                println(result.apiKey)*/
-                val res = preferences.edit().putString(BEARERTOKEN, result.token).commit()
-                val res2 = preferences.edit().putString(APIKEY, result.apiKey).commit()
-                // Need to throw Exception. IDK how to change preference without restarting the app
-                throw IOException("Login Successful. Token Saved. Please restart Tachiyomi.")
-            }
-        }
-        // Save the cookies from the response
-
-        response.close()
+    // Preference code
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
-
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
-        screen.addPreference(screen.editTextPreference(ADDRESS_TITLE, ADDRESS_DEFAULT, "The URL to access your Mango instance. Please include the port number if you didn't set up a reverse proxy"))
-        screen.addPreference(screen.editTextPreference(PORT_TITLE, PORT_DEFAULT, "The port number to use if it's not the default 5000"))
-        screen.addPreference(screen.editTextPreference(USERNAME_TITLE, USERNAME_DEFAULT, "Your login username"))
-        screen.addPreference(screen.editTextPreference(PASSWORD_TITLE, PASSWORD_DEFAULT, "Your login password", true))
-        screen.addPreference(screen.editTextPreference(BEARERTOKEN, BEARERTOKEN_DEFAULT, "Your Token (Don't touch unless necessary)", true))
+        screen.addPreference(screen.editTextPreference(ADDRESS_TITLE, ADDRESS_DEFAULT, "The URL to access your Kavita instance. Please include the port number if you didn't set up a reverse proxy"))
+        screen.addPreference(screen.editTextPreference(APIKEY, "", "The API KEY copied from User Settings", true))
+        screen.addPreference(screen.editTextPreference(BEARERTOKEN, BEARERTOKEN_DEFAULT, "Your Token (Don't touch unless necessary)", true)) // TODO: Remove
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(title: String, default: String, summary: String, isPassword: Boolean = false): androidx.preference.EditTextPreference {
@@ -439,25 +409,17 @@ class Kavita : ConfigurableSource, HttpSource() {
         }
         return path
     }
-    private fun getPrefPort(): String = preferences.getString(PORT_TITLE, PORT_DEFAULT)!!
-    private fun getPrefUsername(): String = preferences.getString(USERNAME_TITLE, USERNAME_DEFAULT)!!
-    private fun getPrefPassword(): String = preferences.getString(PASSWORD_TITLE, PASSWORD_DEFAULT)!!
     private fun getPrefApiKey(): String = preferences.getString(APIKEY, APIKEY_DEFAULT)!!
     private fun getPrefToken(): String = preferences.getString(BEARERTOKEN, BEARERTOKEN_DEFAULT)!!
 
     companion object {
         private const val ADDRESS_TITLE = "Address"
         private const val ADDRESS_DEFAULT = "https://demo.kavitareader.com/api"
-        private const val PORT_TITLE = "Server Port Number"
-        private const val PORT_DEFAULT = "80"
-        private const val USERNAME_TITLE = "Username"
-        private const val USERNAME_DEFAULT = "demouser"
-        private const val PASSWORD_TITLE = "Password"
-        private const val PASSWORD_DEFAULT = "Demouser64"
-        private const val APIKEY = "apiKey"
+        private const val APIKEY = "API KEY"
         private const val APIKEY_DEFAULT = ""
         private const val BEARERTOKEN = "Token"
         private const val BEARERTOKEN_DEFAULT = ""
-        // private const val PASSWORD_DEFAULT = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiJkZW1vdXNlciIsInJvbGUiOiJQbGViIiwibmJmIjoxNjM5MDA0NzQzLCJleHAiOjE2Mzk2MDk1NDMsImlhdCI6MTYzOTAwNDc0M30.NiMpyBuC-VLDiSZ22EYn9T0Hyl8nE9mM37pl_4FTYNtsLLVzhZzbg0rQMLGKiW0SyWXBp-h4BcuFNYXSl5kknA"
+
+        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
     }
 }

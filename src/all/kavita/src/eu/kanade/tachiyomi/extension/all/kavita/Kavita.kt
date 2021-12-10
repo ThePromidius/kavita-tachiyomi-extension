@@ -51,6 +51,9 @@ class Kavita : ConfigurableSource, HttpSource() {
     private var series = emptyList<SeriesDto>()
 
     override fun popularMangaRequest(page: Int): Request {
+        if (!isLoged)checkLogin() else {}
+
+
         return POST(
             "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -273,6 +276,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     /**
      * API Key of the USer. This is parsed from Address
      */
+    private var isLoged = false
     private val apiKey by lazy { getPrefapiKey() }
     private val gson by lazy { Gson() }
     private val json: Json by injectLazy()
@@ -371,6 +375,22 @@ class Kavita : ConfigurableSource, HttpSource() {
         preferences.edit().putString("APIKEY", apiKey).commit()
         preferences.edit().putString("BASEURL", baseUrl).commit()
     }
+
+    private fun checkLogin(){
+        val jsonObject = JSONObject()
+        val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+        val request = POST("$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${URLEncoder.encode("Tachiyomi-Kavita", "utf-8")}", headersBuilder().build(), body)
+        client.newCall(request).execute().run {
+            if (!isSuccessful) {
+                println(this.code)
+                println(this.body.toString())
+                close()
+                throw IOException("Login failed. Your API key is not correct. Please check and try again.")
+            }
+        }
+    }
+
+
 
     // Preference code
     private val preferences: SharedPreferences by lazy {

@@ -36,6 +36,7 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okio.Buffer
 import org.json.JSONObject
 import rx.Observable
 import uy.kohesive.injekt.Injekt
@@ -48,6 +49,13 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     private var libraries = emptyList<LibraryDto>()
     private var series = emptyList<SeriesDto>()
+
+//    override fun fetchPopularManga(page: Int) {
+//        println("entry point: fetchPopularManga")
+//        // Since this is the first call, we need this
+//        setupVariablesFromAddress()
+//
+//    }
 
     override fun popularMangaRequest(page: Int): Request {
         println("popularMangaRequest Page: $page")
@@ -65,8 +73,10 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     // Our popular manga are just our library of manga
     override fun popularMangaParse(response: Response): MangasPage {
+        println("popularMangaParse")
         if (response.isSuccessful.not()) {
             println("Exception")
+            println(response.message)
             throw Exception("HTTP ${response.code}")
         }
 
@@ -351,7 +361,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             val result = response.parseAs<AuthenticationDto>()
             if (result.token.isNotEmpty()) {
                 jwtToken = result.token
-                throw IOException("Restart Tachiyomi")
             }
         }
         response.close()
@@ -359,25 +368,46 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
     private fun authIntercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        setupVariablesFromAddress()
 
         if (jwtToken.isEmpty()) {
             authenticateAndSetToken(chain)
         }
 
-        return chain.proceed(request)
+        // Re-attach the Authorization header
+        val authRequest = request.newBuilder()
+            .removeHeader("Authorization")
+            .addHeader("Authorization", "Bearer $jwtToken")
+            .build()
+
+        return chain.proceed(authRequest)
+    }
+
+    /**
+     * Debug method to pring a Request body
+     */
+    private fun bodyToString(request: Request): String? {
+        return try {
+            val copy = request.newBuilder().build()
+            val buffer = Buffer()
+            copy.body!!.writeTo(buffer)
+            buffer.readUtf8()
+        } catch (e: IOException) {
+            "did not work"
+        }
     }
 
     private fun setupVariablesFromAddress() {
         if (address.isEmpty()) {
             throw IOException("You must setup the Address to communicate with Kavita")
         }
-        val tokens = address.split("/opds/")
-        if (tokens.size != 2) {
-            throw IOException("The Address is not correct. Please copy from User settings -> OPDS Url")
+        if (apiKey.isEmpty() || baseUrl.isEmpty()) {
+            val tokens = address.split("/opds/")
+            if (tokens.size != 2) {
+                throw IOException("The Address is not correct. Please copy from User settings -> OPDS Url")
+            }
+            apiKey = tokens[1]
+            baseUrl = tokens[0]
         }
-        apiKey = tokens[1]
-        baseUrl = tokens[0]
     }
 
     // Preference code

@@ -106,3 +106,14 @@ data class ChapterDto(
 abstract class KavitaManga : SManga {
     abstract val id: Int
 }
+@Serializable
+data class KavitaComicsSearch(
+    val seriesId: Int,
+    val name: String,
+    val originalName: String,
+    val sortName: String,
+    val localizedName: String,
+    val format: Int,
+    val libraryName: String,
+    val libraryId: Int
+)

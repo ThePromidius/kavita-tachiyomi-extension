@@ -59,4 +59,3 @@ class KavitaHelper {
             thumbnail_url = "$baseUrl/image/series-cover?seriesId=${obj.id}"
         }
 }
-

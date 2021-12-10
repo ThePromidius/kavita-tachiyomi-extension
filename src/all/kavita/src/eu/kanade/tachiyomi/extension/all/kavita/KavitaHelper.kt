@@ -17,20 +17,12 @@ class KavitaHelper {
         allowSpecialFloatingPointValues = true
         useArrayPolymorphism = true
         prettyPrint = true
-    } /*
-    fun parseDate(dateAsString: String): Long =
-        MDConstants.dateFormatter.parse(dateAsString)?.time ?: 0
-*/
+    }
+
     val dateFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSSS", Locale.US)
         .apply { timeZone = TimeZone.getTimeZone("UTC") }
     fun parseDate(dateAsString: String): Long =
         dateFormatter.parse(dateAsString)?.time ?: 0
-
-    /*fun convertPagination(page: Int): Int {
-        var pageNum = page - 1
-        if (pageNum < 0) pageNum = 0
-        return pageNum
-    }*/
 
     fun hasNextPage(response: Response): Boolean {
         var paginationHeader = response.header("Pagination")
@@ -48,8 +40,6 @@ class KavitaHelper {
 
     fun createSeriesDto(obj: SeriesDto, baseUrl: String): SManga =
         SManga.create().apply {
-//            println("createSeriesDto")
-//            println(obj)
             url = "$baseUrl/Series/${obj.id}"
             title = obj.name
             // artist = obj.artist

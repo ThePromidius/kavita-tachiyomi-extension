@@ -31,13 +31,6 @@ data class LibraryDto(
     val type: Int
 )
 
-// @Serializable
-// data class SeriesDto(
-//    val id: Int,
-//    @SerialName("name") val title: String,
-//    val thumbnail_url: String? = "",
-//    @SerialName("summary") val description: String? = ""
-// )
 
 @Serializable
 data class SeriesDto(

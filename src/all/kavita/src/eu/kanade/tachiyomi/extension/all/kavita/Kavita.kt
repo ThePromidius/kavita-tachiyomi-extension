@@ -50,20 +50,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     private var libraries = emptyList<LibraryDto>()
     private var series = emptyList<SeriesDto>()
 
-//    override fun fetchPopularManga(page: Int) {
-//        println("entry point: fetchPopularManga")
-//        // Since this is the first call, we need this
-//        setupVariablesFromAddress()
-//
-//    }
-
     override fun popularMangaRequest(page: Int): Request {
-        println("popularMangaRequest Page: $page")
-        // val pageNum = helper.convertPagination(page)
-
-        // Since this is the first call, we need this
-        // setupVariablesFromAddress()
-
         return POST(
             "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -71,15 +58,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         )
     }
 
-    // Our popular manga are just our library of manga
     override fun popularMangaParse(response: Response): MangasPage {
-        println("popularMangaParse")
-        if (response.isSuccessful.not()) {
-            println("Exception")
-            println(response.message)
-            throw Exception("HTTP ${response.code}")
-        }
-
         val result = response.parseAs<List<SeriesDto>>()
         series = result
         val mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }
@@ -88,9 +67,6 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override fun latestUpdatesRequest(page: Int): Request {
         println("latestUpdatesRequest Page: $page")
-        // val pageNum = helper.convertPagination(page)
-
-        // setupVariablesFromAddress()
         return POST(
             "$baseUrl/series/recently-added?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -115,7 +91,6 @@ class Kavita : ConfigurableSource, HttpSource() {
      * **/
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        // setupVariablesFromAddress()
         return GET("$baseUrl/Library/search?queryString=$query", headers)
     }
     override fun searchMangaParse(response: Response): MangasPage {
@@ -138,13 +113,11 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun mangaDetailsRequest(manga: SManga): Request {
         println("mangaDetailsRequest")
         println(manga.url)
-        // setupVariablesFromAddress()
         return GET("$baseUrl/series/metadata?seriesId=${helper.getIdFromUrl(manga.url)}", headersBuilder().build())
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
         println("mangaDetailsParse")
-        // This is metadata
         val result = response.parseAs<SeriesMetadataDto>()
         val existingSeries = series.find { dto -> dto.id == result.seriesId }
 
@@ -165,13 +138,10 @@ class Kavita : ConfigurableSource, HttpSource() {
             thumbnail_url = "$baseUrl/image/series-cover?seriesId=${result.seriesId}"
         }
     }
-
-    // The chapter url will contain how many pages the chapter contains for our page list endpoint
     /**
      * CHAPTER LIST
      * **/
     override fun chapterListRequest(manga: SManga): Request {
-        // setupVariablesFromAddress()
         val url = "$baseUrl/Series/volumes?seriesId=${helper.getIdFromUrl(manga.url)}"
         return GET(url, headersBuilder().build())
     }
@@ -191,11 +161,6 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     private fun chapterFromVolume(obj: ChapterDto, volume: VolumeDto): SChapter = SChapter.create().apply {
-//        println("Volume")
-//        println(volume)
-//        println("Chapter")
-//        println(obj)
-
         // If there are multiple chapters to this volume, then prefix with Volume number
         if (volume.chapters.isNotEmpty() && obj.number != "0") {
             name = "Volume ${volume.number} Chapter ${obj.number}"
@@ -222,9 +187,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        println("chapterListParse")
         try {
-
             val volumes = response.parseAs<List<VolumeDto>>()
 
             val allChapterList = mutableListOf<SChapter>()
@@ -260,15 +223,10 @@ class Kavita : ConfigurableSource, HttpSource() {
      * ACTUAL IMAGE OF PAGES REQUEST
      * **/
     override fun pageListRequest(chapter: SChapter): Request {
-        println("pageListRequest")
-        println(chapter)
         return GET("${chapter.url}/Reader/chapter-info")
     }
 
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
-        println("fetchPageList")
-        println(chapter)
-        // setupVariablesFromAddress()
         val chapterId = chapter.url
         val numPages = chapter.scanlator?.toInt()
         var numPages2 = "$numPages".toInt() - 1

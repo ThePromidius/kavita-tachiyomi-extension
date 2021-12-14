@@ -174,10 +174,10 @@ class Kavita : ConfigurableSource, HttpSource() {
                     name = obj.range
                 }
             } else {
-                name = "Volume ${obj.number}"
+                name = "Volume ${volume.number}"
             }
         } else {
-            name = "Unhandled Else Volume ${obj.number}"
+            name = "Unhandled Else Volume ${volume.number}"
         }
 
         url = obj.id.toString()

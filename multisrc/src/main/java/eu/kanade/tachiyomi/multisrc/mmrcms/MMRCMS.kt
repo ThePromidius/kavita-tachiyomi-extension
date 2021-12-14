@@ -2,13 +2,6 @@ package eu.kanade.tachiyomi.multisrc.mmrcms
 
 import android.annotation.SuppressLint
 import android.net.Uri
-import com.github.salomonbrys.kotson.array
-import com.github.salomonbrys.kotson.bool
-import com.github.salomonbrys.kotson.get
-import com.github.salomonbrys.kotson.string
-import com.google.gson.JsonArray
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.model.Filter
@@ -19,11 +12,20 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Element
 import rx.Observable
+import uy.kohesive.injekt.injectLazy
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -33,7 +35,7 @@ abstract class MMRCMS(
     override val name: String,
     override val baseUrl: String,
     override val lang: String,
-    private val sourceInfo: String = "",
+    sourceInfo: String = "",
 ) : HttpSource() {
     open val jsonData = if (sourceInfo == "") {
         SourceData.giveMetaData(baseUrl)
@@ -72,15 +74,12 @@ abstract class MMRCMS(
      *
      *
      */
-    open val jsonObject = JsonParser.parseString(jsonData) as JsonObject
-    override val supportsLatest = jsonObject["supports_latest"].bool
-    open val itemUrl = jsonObject["item_url"].string
-    open val categoryMappings = mapToPairs(jsonObject["categories"].array)
-    open var tagMappings = if (jsonObject["tags"].isJsonArray) {
-        mapToPairs(jsonObject["tags"].asJsonArray)
-    } else {
-        emptyList<Pair<String, String>>()
-    }
+    private val json: Json by injectLazy()
+    val jsonObject = json.decodeFromString<JsonObject>(jsonData)
+    override val supportsLatest = jsonObject["supports_latest"]!!.jsonPrimitive.boolean
+    open val itemUrl = jsonObject["item_url"]!!.jsonPrimitive.content
+    open val categoryMappings = mapToPairs(jsonObject["categories"]!!.jsonArray)
+    open var tagMappings = jsonObject["tags"]?.jsonArray?.let { mapToPairs(it) } ?: emptyList()
 
     /**
      * Map an array of JSON objects to pairs. Each JSON object must have
@@ -95,7 +94,7 @@ abstract class MMRCMS(
     open fun mapToPairs(array: JsonArray): List<Pair<String, String>> = array.map {
         it as JsonObject
 
-        it["id"].string to it["name"].string
+        it["id"]!!.jsonPrimitive.content to it["name"]!!.jsonPrimitive.content
     }
 
     private val itemUrlPath = Uri.parse(itemUrl).pathSegments.firstOrNull()
@@ -153,16 +152,16 @@ abstract class MMRCMS(
     override fun searchMangaParse(response: Response): MangasPage {
         return if (listOf("query", "q").any { it in response.request.url.queryParameterNames }) {
             // If a search query was specified, use search instead!
-            val jsonArray = JsonParser.parseString(response.body!!.string()).let {
-                it["suggestions"].array
+            val jsonArray = json.decodeFromString<JsonObject>(response.body!!.string()).let {
+                it["suggestions"]!!.jsonArray
             }
             MangasPage(
                 jsonArray
                     .map {
                         SManga.create().apply {
-                            val segment = it["data"].string
+                            val segment = it.jsonObject["data"]!!.jsonPrimitive.content
                             url = getUrlWithoutBaseUrl(itemUrl + segment)
-                            title = it["value"].string
+                            title = it.jsonObject["value"]!!.jsonPrimitive.content
 
                             // Guess thumbnails
                             // thumbnail_url = "$baseUrl/uploads/manga/$segment/cover/cover_250x350.jpg"
@@ -197,7 +196,7 @@ abstract class MMRCMS(
     }
     private fun latestUpdatesSelector() = "div.mangalist div.manga-item"
     private fun latestUpdatesNextPageSelector() = "a[rel=next]"
-    private fun latestUpdatesFromElement(element: Element, urlSelector: String): SManga? {
+    protected open fun latestUpdatesFromElement(element: Element, urlSelector: String): SManga? {
         return element.select(urlSelector).first().let { titleElement ->
             if (titleElement.text() in latestTitles) {
                 null
@@ -212,7 +211,7 @@ abstract class MMRCMS(
         }
     }
     private fun gridLatestUpdatesSelector() = "div.mangalist div.manga-item, div.grid-manga tr"
-    private fun gridLatestUpdatesFromElement(element: Element): SManga = SManga.create().apply {
+    protected open fun gridLatestUpdatesFromElement(element: Element): SManga = SManga.create().apply {
         element.select("a.chart-title").let {
             setUrlWithoutDomain(it.attr("href"))
             title = it.text()
@@ -220,7 +219,7 @@ abstract class MMRCMS(
         thumbnail_url = element.select("img").attr("abs:src")
     }
 
-    private fun internalMangaParse(response: Response): MangasPage {
+    protected open fun internalMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
 
         val internalMangaSelector = when (name) {

@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.SharedPreferences
 import android.text.InputType
 import android.widget.Toast
-import com.google.gson.Gson
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.AuthenticationDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.ChapterDto
@@ -52,7 +51,6 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override fun popularMangaRequest(page: Int): Request {
         if (!isLoged)checkLogin() else {}
-
 
         return POST(
             "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
@@ -278,7 +276,6 @@ class Kavita : ConfigurableSource, HttpSource() {
      */
     private var isLoged = false
     private val apiKey by lazy { getPrefapiKey() }
-    private val gson by lazy { Gson() }
     private val json: Json by injectLazy()
 
     private val helper = KavitaHelper()
@@ -376,7 +373,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         preferences.edit().putString("BASEURL", baseUrl).commit()
     }
 
-    private fun checkLogin(){
+    private fun checkLogin() {
         val jsonObject = JSONObject()
         val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         val request = POST("$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${URLEncoder.encode("Tachiyomi-Kavita", "utf-8")}", headersBuilder().build(), body)
@@ -389,8 +386,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             }
         }
     }
-
-
 
     // Preference code
     private val preferences: SharedPreferences by lazy {

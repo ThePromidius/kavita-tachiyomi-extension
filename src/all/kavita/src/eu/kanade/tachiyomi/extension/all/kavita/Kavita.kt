@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.SharedPreferences
 import android.text.InputType
 import android.widget.Toast
-import com.google.gson.Gson
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.AuthenticationDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.ChapterDto
@@ -25,9 +24,11 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -274,7 +275,6 @@ class Kavita : ConfigurableSource, HttpSource() {
      * API Key of the USer. This is parsed from Address
      */
     private val apiKey by lazy { getPrefapiKey() }
-    private val gson by lazy { Gson() }
     private val json: Json by injectLazy()
 
     private val helper = KavitaHelper()
@@ -298,6 +298,32 @@ class Kavita : ConfigurableSource, HttpSource() {
 
         val payload = buildJsonObject {
             put("formats", formats)
+            put("libraries", buildJsonArray {})
+            put(
+                "readStatus",
+                buildJsonObject {
+                    put("NotRead", JsonPrimitive(true))
+                    put("InProgress", JsonPrimitive(true))
+                    put("Read", JsonPrimitive(true))
+                }
+            )
+            put("genres", buildJsonArray {})
+            put("writers", buildJsonArray {})
+            put("penciller", buildJsonArray {})
+            put("inker", buildJsonArray {})
+            put("colorist", buildJsonArray {})
+            put("letterer", buildJsonArray {})
+            put("coverArtist", buildJsonArray {})
+            put("editor", buildJsonArray {})
+            put("publisher", buildJsonArray {})
+            put("character", buildJsonArray {})
+            put("translators", buildJsonArray {})
+            put("collectionTags", buildJsonArray {})
+            put("languages", buildJsonArray {})
+            put("tags", buildJsonArray {})
+            put("rating", 0)
+            put("ageRating", 0)
+            // put("sortOptions", JSONObject.NULL)
         }
 
         return payload.toString().toRequestBody(JSON_MEDIA_TYPE)

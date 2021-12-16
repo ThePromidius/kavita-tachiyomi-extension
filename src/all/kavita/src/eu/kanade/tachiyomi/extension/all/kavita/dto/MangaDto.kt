@@ -31,7 +31,6 @@ data class LibraryDto(
     val type: Int
 )
 
-
 @Serializable
 data class SeriesDto(
     val id: Int,

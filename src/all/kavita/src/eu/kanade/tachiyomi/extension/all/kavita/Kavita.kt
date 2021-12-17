@@ -77,7 +77,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun popularMangaRequest(page: Int): Request {
         if (!isLoged)checkLogin() else {}
 
-        debugRequest(page)
+        //debugRequest(page)
 
         return POST(
             "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",

@@ -62,6 +62,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
+
         val result = response.parseAs<List<SeriesDto>>()
         series = result
         val mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }

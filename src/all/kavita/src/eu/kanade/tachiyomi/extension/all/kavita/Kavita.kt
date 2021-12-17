@@ -13,9 +13,16 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.MangaFormat
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesMetadataDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.VolumeDto
+import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataAgeRatings
+import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataGenres
+import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataLanguages
+import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataPayload
+import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataPeople
+import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataTags
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -77,7 +84,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun popularMangaRequest(page: Int): Request {
         if (!isLoged)checkLogin() else {}
 
-        //debugRequest(page)
+        // debugRequest(page)
 
         return POST(
             "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
@@ -118,14 +125,76 @@ class Kavita : ConfigurableSource, HttpSource() {
     /**
      * SEARCH MANGA
      * **/
-
+    var isFilterOn = false
+    var toFilter = metadataPayload()
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        return GET("$baseUrl/Library/search?queryString=$query", headers)
+
+        filters.forEach { filter ->
+            when (filter) {
+                is GenreFilterGroup -> {
+
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            val DtoObj = genresListMeta.find { it.title == content.name }
+                            toFilter.genres.add(DtoObj!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is PeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            val DtoObj = peopleListMeta.find { it.name == content.name }
+                            toFilter.people?.add(DtoObj!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is TagFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            val DtoObj = tagsListMeta.find { it.name == content.name }
+                            toFilter.tags?.add(DtoObj!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is AgeRatingFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            val DtoObj = ageRatingsListMeta.find { it.title == content.name }
+                            toFilter.ageRating?.add(DtoObj!!.value)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is LanguageFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            val DtoObj = languagesListMeta.find { it.title == content.name }
+                            toFilter.language?.add(DtoObj!!.isoCode)
+                            isFilterOn = true
+                        }
+                    }
+                }
+            }
+        }
+
+        if (isFilterOn) {
+            return popularMangaRequest(page)
+        } else {
+            return GET("$baseUrl/Library/search?queryString=$query", headers)
+        }
     }
     override fun searchMangaParse(response: Response): MangasPage {
-        val result = response.parseAs<List<KavitaComicsSearch>>()
-        val mangaList = result.map(::searchMangaFromObject)
-        return MangasPage(mangaList, false)
+        if (isFilterOn) {
+            isFilterOn = false
+            return popularMangaParse(response)
+        } else {
+            val result = response.parseAs<List<KavitaComicsSearch>>()
+            val mangaList = result.map(::searchMangaFromObject)
+            return MangasPage(mangaList, false)
+        }
     }
     private fun searchMangaFromObject(obj: KavitaComicsSearch): SManga = SManga.create().apply {
         title = obj.name
@@ -277,9 +346,130 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun imageUrlParse(response: Response): String = ""
 
     /**
-     * UNUSED FILTER
+     *
+     *
+     *          FILTERING
+     *
+     *
      * **/
-    override fun getFilterList(): FilterList = FilterList()
+    private fun fetchMetadataFiltering(chain: Interceptor.Chain) {
+
+        if (genresListMeta.isEmpty()) {
+            val request = GET("$baseUrl/Metadata/genres", headersBuilder().build())
+            val response = chain.proceed(request)
+            val requestSuccess = response.code == 200
+            if (requestSuccess) {
+                println("Genres Fetch successful")
+                genresListMeta = response.parseAs<List<metadataGenres>>()
+            }
+            response.close()
+        }
+
+        if (peopleListMeta.isEmpty()) {
+            val request = GET("$baseUrl/Metadata/people", headersBuilder().build())
+            val response = chain.proceed(request)
+            val requestSuccess = response.code == 200
+
+            if (requestSuccess) {
+                println("People Fetch successful")
+                peopleListMeta = response.parseAs<List<metadataPeople>>()
+            }
+            response.close()
+        }
+
+        if (tagsListMeta.isEmpty()) {
+            val request = GET("$baseUrl/Metadata/tags", headersBuilder().build())
+            val response = chain.proceed(request)
+            val requestSuccess = response.code == 200
+
+            if (requestSuccess) {
+                println("Tags Fetch successful")
+                tagsListMeta = response.parseAs<List<metadataTags>>()
+            }
+            response.close()
+        }
+
+        if (ageRatingsListMeta.isEmpty()) {
+            val request = GET("$baseUrl/Metadata/age-ratings", headersBuilder().build())
+            val response = chain.proceed(request)
+            val requestSuccess = response.code == 200
+
+            if (requestSuccess) {
+                println("Age Ratings Fetch successful")
+                ageRatingsListMeta = response.parseAs<List<metadataAgeRatings>>()
+            }
+            response.close()
+        }
+
+        if (languagesListMeta.isEmpty()) {
+            val request = GET("$baseUrl/Metadata/languages", headersBuilder().build())
+            val response = chain.proceed(request)
+            val requestSuccess = response.code == 200
+
+            if (requestSuccess) {
+                println("Languages Fetch successful")
+                languagesListMeta = response.parseAs<List<metadataLanguages>>()
+            }
+            response.close()
+        }
+    }
+    /** Some variable names already exist. im not good at naming add Meta suffix */
+    var genresListMeta = emptyList<metadataGenres>()
+    var peopleListMeta = emptyList<metadataPeople>()
+    var tagsListMeta = emptyList<metadataTags>()
+    var ageRatingsListMeta = emptyList<metadataAgeRatings>()
+    var languagesListMeta = emptyList<metadataLanguages>()
+
+    private class GenreFilter(genre: String) : Filter.CheckBox(genre, false)
+    private class GenreFilterGroup(genres: List<GenreFilter>) : Filter.Group<GenreFilter>("Genres", genres)
+
+    private class PeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class PeopleFilterGroup(peoples: List<PeopleFilter>) : Filter.Group<PeopleFilter>("People", peoples)
+
+    private class TagFilter(tag: String) : Filter.CheckBox(tag, false)
+    private class TagFilterGroup(tags: List<TagFilter>) : Filter.Group<TagFilter>("Tags", tags)
+
+    private class AgeRatingFilter(ageRating: String) : Filter.CheckBox(ageRating, false)
+    private class AgeRatingFilterGroup(ageRatings: List<AgeRatingFilter>) : Filter.Group<AgeRatingFilter>("Age-Rating", ageRatings)
+
+    private class LanguageFilter(language: String) : Filter.CheckBox(language, false)
+    private class LanguageFilterGroup(languages: List<LanguageFilter>) : Filter.Group<LanguageFilter>("Language", languages)
+
+    override fun getFilterList(): FilterList {
+        var GenresFilter = mutableListOf<GenreFilter>()
+        var PeoplesFilter = mutableListOf<PeopleFilter>()
+        var TagsFilter = mutableListOf<TagFilter>()
+        var AgeRatingsFilter = mutableListOf<AgeRatingFilter>()
+        var LanguagesFilter = mutableListOf<LanguageFilter>()
+
+        genresListMeta.map { GenresFilter.add(GenreFilter(it.title)) }
+        peopleListMeta.map { PeoplesFilter.add(PeopleFilter(it.name)) }
+        tagsListMeta.map { TagsFilter.add(TagFilter(it.name)) }
+        ageRatingsListMeta.map { AgeRatingsFilter.add(AgeRatingFilter(it.title)) }
+        languagesListMeta.map { LanguagesFilter.add(LanguageFilter(it.title)) }
+
+        val filters = try {
+            mutableListOf<Filter<*>>(
+                GenreFilterGroup(GenresFilter),
+                PeopleFilterGroup(PeoplesFilter),
+                TagFilterGroup(TagsFilter),
+                AgeRatingFilterGroup(AgeRatingsFilter),
+                LanguageFilterGroup(LanguagesFilter)
+
+            )
+        } catch (e: Exception) {
+            println("Exception:\n$e")
+            emptyList()
+        }
+
+        return FilterList(filters)
+    }
+
+    /**
+     *
+     * Finished filtering
+     *
+     * */
 
     override val name = "Kavita"
     override val lang = "all"
@@ -318,12 +508,18 @@ class Kavita : ConfigurableSource, HttpSource() {
             .add("Authorization", "Bearer $jwtToken")
     }
 
-    private fun buildFilterBody(): RequestBody {
+    private fun buildFilterBody(filter: metadataPayload = toFilter): RequestBody {
         val formats = buildJsonArray {
             add(MangaFormat.Archive.ordinal)
             add(MangaFormat.Image.ordinal)
             add(MangaFormat.Pdf.ordinal)
         }
+
+        val genres = buildJsonArray { filter.genres.map { add(it) } }
+        val people = buildJsonArray { filter.people.map { add(it) } }
+        val tags = buildJsonArray { filter.tags.map { add(it) } }
+        val ageRating = buildJsonArray { filter.ageRating.map { add(it) } }
+        val language = buildJsonArray { filter.language.map { add(it) } }
 
         val payload = buildJsonObject {
             put("formats", formats)
@@ -336,8 +532,10 @@ class Kavita : ConfigurableSource, HttpSource() {
                     put("Read", JsonPrimitive(true))
                 }
             )
-            put("genres", buildJsonArray {})
-            put("writers", buildJsonArray {})
+
+            put("genres", if (filter.genres.isNotEmpty()) { genres } else { buildJsonArray {} })
+            put("writers", if (filter.people.isNotEmpty()) { people } else { buildJsonArray {} })
+            // put("writers", buildJsonArray {})
             put("penciller", buildJsonArray {})
             put("inker", buildJsonArray {})
             put("colorist", buildJsonArray {})
@@ -348,10 +546,11 @@ class Kavita : ConfigurableSource, HttpSource() {
             put("character", buildJsonArray {})
             put("translators", buildJsonArray {})
             put("collectionTags", buildJsonArray {})
-            put("languages", buildJsonArray {})
-            put("tags", buildJsonArray {})
+            put("languages", if (filter.language.isNotEmpty()) { language } else { buildJsonArray {} })
+            put("tags", if (filter.tags.isNotEmpty()) { tags } else { buildJsonArray {} })
             put("rating", 0)
-            put("ageRating", buildJsonArray {})
+            put("tags", if (filter.tags.isNotEmpty()) { tags } else { buildJsonArray {} })
+            put("ageRating", if (filter.ageRating.isNotEmpty()) { ageRating } else { buildJsonArray {} })
             // put("sortOptions", JSONObject.NULL)
         }
 
@@ -379,6 +578,8 @@ class Kavita : ConfigurableSource, HttpSource() {
             }
         }
         response.close()
+        fetchMetadataFiltering(chain)
+
         return requestSuccess
     }
     private fun authIntercept(chain: Interceptor.Chain): Response {
@@ -494,3 +695,4 @@ class Kavita : ConfigurableSource, HttpSource() {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
     }
 }
+// http://192.168.0.135:5000/api/opds/91ed6b37-2047-4193-affb-119bff3e0041

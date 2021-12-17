@@ -51,8 +51,33 @@ class Kavita : ConfigurableSource, HttpSource() {
     private var libraries = emptyList<LibraryDto>()
     private var series = emptyList<SeriesDto>()
 
+    fun debugRequest(page: Int) {
+        /**<DEBUG>*/
+        val jsonObject = JSONObject()
+        val body = jsonObject.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+        val request = POST(
+            "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
+            headersBuilder().build(),
+            buildFilterBody()
+        )
+        client.newCall(request).execute().run {
+            if (!isSuccessful) {
+
+                println(this.code)
+                println(this.body!!.string())
+                close()
+                throw IOException("eRRRRROR")
+            } else {
+                println(this.code)
+                println(this.body!!.string())
+            }
+        }
+        /**</DEBUG>*/
+    }
     override fun popularMangaRequest(page: Int): Request {
         if (!isLoged)checkLogin() else {}
+
+        debugRequest(page)
 
         return POST(
             "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
@@ -326,7 +351,7 @@ class Kavita : ConfigurableSource, HttpSource() {
             put("languages", buildJsonArray {})
             put("tags", buildJsonArray {})
             put("rating", 0)
-            put("ageRating", 0)
+            put("ageRating", buildJsonArray {})
             // put("sortOptions", JSONObject.NULL)
         }
 

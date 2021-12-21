@@ -30,6 +30,8 @@ data class metadataLanguages(
     val title: String
 )
 data class metadataPayload(
+    var readStatus: ArrayList<String> = arrayListOf< String>(),
+
     var genres: ArrayList<Int> = arrayListOf<Int>(),
 
     var people: ArrayList<Int> = arrayListOf<Int>(),

@@ -84,8 +84,6 @@ class Kavita : ConfigurableSource, HttpSource() {
     override fun popularMangaRequest(page: Int): Request {
         if (!isLoged)checkLogin() else {}
 
-        // debugRequest(page)
-
         return POST(
             "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -131,8 +129,15 @@ class Kavita : ConfigurableSource, HttpSource() {
 
         filters.forEach { filter ->
             when (filter) {
+                is StatusGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.readStatus.add(content.name)
+                            isFilterOn = true
+                        }
+                    }
+                }
                 is GenreFilterGroup -> {
-
                     filter.state.forEach { content ->
                         if (content.state) {
                             val DtoObj = genresListMeta.find { it.title == content.name }
@@ -177,10 +182,11 @@ class Kavita : ConfigurableSource, HttpSource() {
                         }
                     }
                 }
+                else -> isFilterOn = false
             }
         }
 
-        if (isFilterOn) {
+        if (isFilterOn || query.isNullOrEmpty()) {
             return popularMangaRequest(page)
         } else {
             return GET("$baseUrl/Library/search?queryString=$query", headers)
@@ -191,6 +197,9 @@ class Kavita : ConfigurableSource, HttpSource() {
             isFilterOn = false
             return popularMangaParse(response)
         } else {
+            if (response.request.url.toString().contains("api/series/all"))
+                return popularMangaParse(response)
+
             val result = response.parseAs<List<KavitaComicsSearch>>()
             val mangaList = result.map(::searchMangaFromObject)
             return MangasPage(mangaList, false)
@@ -301,10 +310,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                         // Volume chapter
                         volume.chapters.map {
                             allChapterList.add(chapterFromVolume(it, volume))
-                        }
-                    }
-                }
-            }
+                        }}}}
 
             allChapterList.reverse()
 
@@ -413,8 +419,7 @@ class Kavita : ConfigurableSource, HttpSource() {
             response.close()
         }
 
-        ///ilters Todo:Add more filtering options
-
+        // /ilters Todo:Add more filtering options
     }
     /** Some variable names already exist. im not good at naming add Meta suffix */
     var genresListMeta = emptyList<metadataGenres>()
@@ -438,26 +443,19 @@ class Kavita : ConfigurableSource, HttpSource() {
     private class LanguageFilter(language: String) : Filter.CheckBox(language, false)
     private class LanguageFilterGroup(languages: List<LanguageFilter>) : Filter.Group<LanguageFilter>("Language", languages)
 
+    // drtes
+    private class StatusFilter(name: String) : Filter.CheckBox(name, false)
+    private class StatusGroup(filters: List<StatusFilter>) : Filter.Group<StatusFilter>("Status", filters)
+
     override fun getFilterList(): FilterList {
-        var GenresFilter = mutableListOf<GenreFilter>()
-        var PeoplesFilter = mutableListOf<PeopleFilter>()
-        var TagsFilter = mutableListOf<TagFilter>()
-        var AgeRatingsFilter = mutableListOf<AgeRatingFilter>()
-        var LanguagesFilter = mutableListOf<LanguageFilter>()
-
-        genresListMeta.map { GenresFilter.add(GenreFilter(it.title)) }
-        peopleListMeta.map { PeoplesFilter.add(PeopleFilter(it.name)) }
-        tagsListMeta.map { TagsFilter.add(TagFilter(it.name)) }
-        ageRatingsListMeta.map { AgeRatingsFilter.add(AgeRatingFilter(it.title)) }
-        languagesListMeta.map { LanguagesFilter.add(LanguageFilter(it.title)) }
-
         val filters = try {
             mutableListOf<Filter<*>>(
-                GenreFilterGroup(GenresFilter),
-                PeopleFilterGroup(PeoplesFilter),
-                TagFilterGroup(TagsFilter),
-                AgeRatingFilterGroup(AgeRatingsFilter),
-                LanguageFilterGroup(LanguagesFilter)
+                StatusGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
+                GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
+                PeopleFilterGroup(peopleListMeta.map { PeopleFilter(it.name) }),
+                TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
+                AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
+                LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) })
 
             )
         } catch (e: Exception) {
@@ -530,14 +528,21 @@ class Kavita : ConfigurableSource, HttpSource() {
             put(
                 "readStatus",
                 buildJsonObject {
-                    put("NotRead", JsonPrimitive(true))
-                    put("InProgress", JsonPrimitive(true))
-                    put("Read", JsonPrimitive(true))
-                }
+                    if (filter.readStatus.isNotEmpty() and isFilterOn) {
+                        // set true/false accordingly depending on what checkboxes are checked
+                        filter.readStatus.forEach {listOf("notRead", "inProgress", "read").forEach {if (it == it){
+                            put(it, JsonPrimitive(true))
+                        } else {
+                            put(it, JsonPrimitive(false))}}}
+                    } else {
+                            put("notRead", JsonPrimitive(true))
+                            put("inProgress", JsonPrimitive(true))
+                            put("read", JsonPrimitive(true))
+                    }}
             )
 
-            put("genres", if (filter.genres.isNotEmpty()) { genres } else { buildJsonArray {} })
-            put("writers", if (filter.people.isNotEmpty()) { people } else { buildJsonArray {} })
+            put("genres", if (filter.genres.isNotEmpty() and isFilterOn) { genres } else { buildJsonArray {} })
+            put("writers", if (filter.people.isNotEmpty() and isFilterOn) { people } else { buildJsonArray {} })
             // put("writers", buildJsonArray {})
             put("penciller", buildJsonArray {})
             put("inker", buildJsonArray {})
@@ -549,11 +554,11 @@ class Kavita : ConfigurableSource, HttpSource() {
             put("character", buildJsonArray {})
             put("translators", buildJsonArray {})
             put("collectionTags", buildJsonArray {})
-            put("languages", if (filter.language.isNotEmpty()) { language } else { buildJsonArray {} })
-            put("tags", if (filter.tags.isNotEmpty()) { tags } else { buildJsonArray {} })
+            put("languages", if (filter.language.isNotEmpty() and isFilterOn) { language } else { buildJsonArray {} })
+            put("tags", if (filter.tags.isNotEmpty() and isFilterOn) { tags } else { buildJsonArray {} })
             put("rating", 0)
-            put("tags", if (filter.tags.isNotEmpty()) { tags } else { buildJsonArray {} })
-            put("ageRating", if (filter.ageRating.isNotEmpty()) { ageRating } else { buildJsonArray {} })
+            put("tags", if (filter.tags.isNotEmpty() and isFilterOn) { tags } else { buildJsonArray {} })
+            put("ageRating", if (filter.ageRating.isNotEmpty() and isFilterOn) { ageRating } else { buildJsonArray {} })
             // put("sortOptions", JSONObject.NULL)
         }
 
@@ -562,7 +567,9 @@ class Kavita : ConfigurableSource, HttpSource() {
 
     override val client: OkHttpClient =
         network.client.newBuilder()
-            .addInterceptor { authIntercept(it) }
+            .addInterceptor {
+                authIntercept(it)
+            }
             .build()
 
     private fun authenticateAndSetToken(chain: Interceptor.Chain): Boolean {
@@ -586,7 +593,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         return requestSuccess
     }
     private fun authIntercept(chain: Interceptor.Chain): Response {
-        // setupVariablesFromAddress()
+
         val request = chain.request()
 
         if (jwtToken.isEmpty()) {

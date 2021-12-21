@@ -412,6 +412,9 @@ class Kavita : ConfigurableSource, HttpSource() {
             }
             response.close()
         }
+
+        ///ilters Todo:Add more filtering options
+
     }
     /** Some variable names already exist. im not good at naming add Meta suffix */
     var genresListMeta = emptyList<metadataGenres>()

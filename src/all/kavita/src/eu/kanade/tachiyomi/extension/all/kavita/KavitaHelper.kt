@@ -25,10 +25,10 @@ class KavitaHelper {
         dateFormatter.parse(dateAsString)?.time ?: 0
 
     fun hasNextPage(response: Response): Boolean {
-        var paginationHeader = response.header("Pagination")
+        val paginationHeader = response.header("Pagination")
         var hasNextPage = false
         if (!paginationHeader.isNullOrEmpty()) {
-            var paginationInfo = json.decodeFromString<PaginationInfo>(paginationHeader)
+            val paginationInfo = json.decodeFromString<PaginationInfo>(paginationHeader)
             hasNextPage = paginationInfo.currentPage + 1 > paginationInfo.totalPages
         }
         return !hasNextPage
@@ -42,13 +42,7 @@ class KavitaHelper {
         SManga.create().apply {
             url = "$baseUrl/Series/${obj.id}"
             title = obj.name
-            //TODO(Should delete this when sure they are not used)
-
-            // Not used: (accessed from MangaDto):  artist = obj.artist
-            // Not used: (accessed from MangaDto):  author = obj.author
-            // Deprecated (accessed from MangaDto): description = obj.summary
-            // Not used: (accessed from MangaDto):  genre = obj.genres.joinToString(", ")
-            // status = obj.status
+            description = obj.summary
             thumbnail_url = "$baseUrl/image/series-cover?seriesId=${obj.id}"
         }
 }

@@ -5,40 +5,46 @@ import kotlinx.serialization.Serializable
 * This file contains all class for filtering
 *  */
 @Serializable
-data class metadataGenres(
+data class MetadataGenres(
     val id: Int,
     val title: String,
 )
 @Serializable
-data class metadataPeople(
+data class MetadataPeople(
     val id: Int,
     val name: String,
     val role: Int
 )
 @Serializable
-data class metadataTags(
+data class MetadataTags(
     val id: Int,
     val name: String,
     val role: Int
 )
 @Serializable
-data class metadataAgeRatings(
+data class MetadataAgeRatings(
     val value: Int,
     val title: String
 )
 @Serializable
-data class metadataLanguages(
+data class MetadataLanguages(
     val isoCode: String,
     val title: String
 )
-data class metadataPayload(
+@Serializable
+data class MetadataLibrary(
+    val id: Int,
+    val name: String,
+    val type: Int
+)
+
+data class MetadataPayload(
+    var readStatus: ArrayList<String> = arrayListOf< String>(),
     var genres: ArrayList<Int> = arrayListOf<Int>(),
-
-    var people: ArrayList<Int> = arrayListOf<Int>(),
-
     var tags: ArrayList<Int> = arrayListOf<Int>(),
-
     var ageRating: ArrayList<Int> = arrayListOf<Int>(),
-
+    var formats: ArrayList<String> = arrayListOf<String>(),
+    var people: ArrayList<Int> = arrayListOf<Int>(),
     var language: ArrayList<String> = arrayListOf<String>(),
+    var libraries: ArrayList<Int> = arrayListOf<Int>()
 )

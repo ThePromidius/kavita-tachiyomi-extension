@@ -10,15 +10,15 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.ChapterDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.KavitaComicsSearch
 import eu.kanade.tachiyomi.extension.all.kavita.dto.LibraryDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MangaFormat
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataAgeRatings
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataGenres
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataLanguages
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPayload
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPeople
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataTags
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesMetadataDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.VolumeDto
-import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataAgeRatings
-import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataGenres
-import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataLanguages
-import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataPayload
-import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataPeople
-import eu.kanade.tachiyomi.extension.all.kavita.dto.metadataTags
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.ConfigurableSource
@@ -58,9 +58,9 @@ class Kavita : ConfigurableSource, HttpSource() {
     override val lang = "all"
     override val supportsLatest = true
     override val baseUrl by lazy { getPrefBaseUrl() } // Base URL is the API address of the Kavita Server. Should end with /api
-    private val address by lazy { getPrefAddress() }// Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
-    private var jwtToken = "" //* JWT Token for authentication with the server. Stored in memory.
-    private val apiKey by lazy { getPrefapiKey() } //API Key of the USer. This is parsed from Address
+    private val address by lazy { getPrefAddress() } // Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
+    private var jwtToken = "" // * JWT Token for authentication with the server. Stored in memory.
+    private val apiKey by lazy { getPrefapiKey() } // API Key of the USer. This is parsed from Address
     private var isLoged =
         false // Used to know if login was correct and not send login requests anymore
 
@@ -70,11 +70,10 @@ class Kavita : ConfigurableSource, HttpSource() {
         use { json.decodeFromString(it.body?.string().orEmpty()) }
 
     private var libraries = emptyList<LibraryDto>()
-    private var series = emptyList<SeriesDto>() //Acts as a cache
-
+    private var series = emptyList<SeriesDto>() // Acts as a cache
 
     override fun popularMangaRequest(page: Int): Request {
-        if (!isLoged) {checkLogin()}
+        if (!isLoged) { checkLogin() }
 
         return POST(
             "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
@@ -114,11 +113,11 @@ class Kavita : ConfigurableSource, HttpSource() {
      * SEARCH MANGA
      * **/
     var isFilterOn = false // If any filter option is enabled this is true
-    var toFilter = metadataPayload()
+    var toFilter = MetadataPayload()
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         filters.forEach { filter ->
             when (filter) {
-                is StatusGroup -> {
+                is StatusFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
                             toFilter.readStatus.add(content.name)
@@ -131,15 +130,6 @@ class Kavita : ConfigurableSource, HttpSource() {
                         if (content.state) {
                             val DtoObj = genresListMeta.find { it.title == content.name }
                             toFilter.genres.add(DtoObj!!.id)
-                            isFilterOn = true
-                        }
-                    }
-                }
-                is PeopleFilterGroup -> {
-                    filter.state.forEach { content ->
-                        if (content.state) {
-                            val DtoObj = peopleListMeta.find { it.name == content.name }
-                            toFilter.people.add(DtoObj!!.id)
                             isFilterOn = true
                         }
                     }
@@ -162,6 +152,23 @@ class Kavita : ConfigurableSource, HttpSource() {
                         }
                     }
                 }
+                is FormatsFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.formats.add(content.name)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is PeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            val DtoObj = peopleListMeta.find { it.name == content.name }
+                            toFilter.people.add(DtoObj!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
                 is LanguageFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
@@ -171,6 +178,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                         }
                     }
                 }
+
                 else -> isFilterOn = false
             }
         }
@@ -362,7 +370,7 @@ class Kavita : ConfigurableSource, HttpSource() {
             val requestSuccess = response.code == 200
             if (requestSuccess) {
                 println("Genres Fetch successful")
-                genresListMeta = response.parseAs<List<metadataGenres>>()
+                genresListMeta = response.parseAs<List<MetadataGenres>>()
             }
             response.close()
         }
@@ -373,7 +381,7 @@ class Kavita : ConfigurableSource, HttpSource() {
 
             if (requestSuccess) {
                 println("People Fetch successful")
-                peopleListMeta = response.parseAs<List<metadataPeople>>()
+                peopleListMeta = response.parseAs<List<MetadataPeople>>()
             }
             response.close()
         }
@@ -384,7 +392,7 @@ class Kavita : ConfigurableSource, HttpSource() {
 
             if (requestSuccess) {
                 println("Tags Fetch successful")
-                tagsListMeta = response.parseAs<List<metadataTags>>()
+                tagsListMeta = response.parseAs<List<MetadataTags>>()
             }
             response.close()
         }
@@ -395,7 +403,7 @@ class Kavita : ConfigurableSource, HttpSource() {
 
             if (requestSuccess) {
                 println("Age Ratings Fetch successful")
-                ageRatingsListMeta = response.parseAs<List<metadataAgeRatings>>()
+                ageRatingsListMeta = response.parseAs<List<MetadataAgeRatings>>()
             }
             response.close()
         }
@@ -406,49 +414,56 @@ class Kavita : ConfigurableSource, HttpSource() {
 
             if (requestSuccess) {
                 println("Languages Fetch successful")
-                languagesListMeta = response.parseAs<List<metadataLanguages>>()
+                languagesListMeta = response.parseAs<List<MetadataLanguages>>()
             }
             response.close()
         }
     }
 
     /** Some variable names already exist. im not good at naming add Meta suffix */
-    var genresListMeta = emptyList<metadataGenres>()
-    var peopleListMeta = emptyList<metadataPeople>()
-    var tagsListMeta = emptyList<metadataTags>()
-    var ageRatingsListMeta = emptyList<metadataAgeRatings>()
-    var languagesListMeta = emptyList<metadataLanguages>()
+    var genresListMeta = emptyList<MetadataGenres>()
+    var tagsListMeta = emptyList<MetadataTags>()
+    var ageRatingsListMeta = emptyList<MetadataAgeRatings>()
+    var peopleListMeta = emptyList<MetadataPeople>()
+    var languagesListMeta = emptyList<MetadataLanguages>()
 
     private class GenreFilter(genre: String) : Filter.CheckBox(genre, false)
     private class GenreFilterGroup(genres: List<GenreFilter>) :
         Filter.Group<GenreFilter>("Genres", genres)
 
-    private class PeopleFilter(people: String) : Filter.CheckBox(people, false)
-    private class PeopleFilterGroup(peoples: List<PeopleFilter>) :
-        Filter.Group<PeopleFilter>("People", peoples)
+    private class StatusFilter(name: String) : Filter.CheckBox(name, false)
+    private class StatusFilterGroup(filters: List<StatusFilter>) :
+        Filter.Group<StatusFilter>("Status", filters)
 
     private class TagFilter(tag: String) : Filter.CheckBox(tag, false)
     private class TagFilterGroup(tags: List<TagFilter>) : Filter.Group<TagFilter>("Tags", tags)
+
     private class AgeRatingFilter(ageRating: String) : Filter.CheckBox(ageRating, false)
     private class AgeRatingFilterGroup(ageRatings: List<AgeRatingFilter>) :
         Filter.Group<AgeRatingFilter>("Age-Rating", ageRatings)
+
+    private class FormatFilter(name: String) : Filter.CheckBox(name, false)
+    private class FormatsFilterGroup(formats: List<FormatFilter>) :
+        Filter.Group<FormatFilter>("Formats", formats)
 
     private class LanguageFilter(language: String) : Filter.CheckBox(language, false)
     private class LanguageFilterGroup(languages: List<LanguageFilter>) :
         Filter.Group<LanguageFilter>("Language", languages)
 
-    private class StatusFilter(name: String) : Filter.CheckBox(name, false)
-    private class StatusGroup(filters: List<StatusFilter>) :
-        Filter.Group<StatusFilter>("Status", filters)
+    private class PeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class PeopleFilterGroup(peoples: List<PeopleFilter>) :
+        Filter.Group<PeopleFilter>("People", peoples)
+
 
     override fun getFilterList(): FilterList {
         val filters = try {
             mutableListOf<Filter<*>>(
-                StatusGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
+                StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
                 GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
-                PeopleFilterGroup(peopleListMeta.map { PeopleFilter(it.name) }),
                 TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
                 AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
+                FormatsFilterGroup(listOf("Manga", "Archive", "Unknown", "Epub", "Pdf").map { FormatFilter(it) }),
+                PeopleFilterGroup(peopleListMeta.map { PeopleFilter(it.name) }),
                 LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) })
             )
         } catch (e: Exception) {
@@ -471,15 +486,17 @@ class Kavita : ConfigurableSource, HttpSource() {
             .add("Authorization", "Bearer $jwtToken")
     }
 
-    private fun buildFilterBody(filter: metadataPayload = toFilter): RequestBody {
+    private fun buildFilterBody(filter: MetadataPayload = toFilter): RequestBody {
+        var filter = filter
+        if (!isFilterOn) {
+            filter = MetadataPayload()
+        }
+
         val formats = buildJsonArray {
+            // TODO: Add formats here. the rest is done. filter.formats can be used. List<String> Ref: Line465 in getFilterList
             add(MangaFormat.Archive.ordinal)
             add(MangaFormat.Image.ordinal)
             add(MangaFormat.Pdf.ordinal)
-        }
-        var filter = filter
-        if (!isFilterOn) {
-            filter = metadataPayload()
         }
 
         val payload = buildJsonObject {
@@ -489,13 +506,11 @@ class Kavita : ConfigurableSource, HttpSource() {
                 "readStatus",
                 buildJsonObject {
                     if (filter.readStatus.isNotEmpty() and isFilterOn) {
-                        filter.readStatus.forEach {
-                            listOf("notRead", "inProgress", "read").forEach {
-                                if (it == it) {
-                                    put(it, JsonPrimitive(true))
-                                } else {
-                                    put(it, JsonPrimitive(false))
-                                }
+                        filter.readStatus.forEach { status ->
+                            if (status in listOf("notRead", "inProgress", "read")) {
+                                put(status, JsonPrimitive(true))
+                            } else {
+                                put(status, JsonPrimitive(false))
                             }
                         }
                     } else {
@@ -540,11 +555,12 @@ class Kavita : ConfigurableSource, HttpSource() {
             .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         val request = POST(
             "$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${
-                URLEncoder.encode(
-                    "Tachiyomi-Kavita",
-                    "utf-8"
-                )
-            }", headersBuilder().build(), body
+            URLEncoder.encode(
+                "Tachiyomi-Kavita",
+                "utf-8"
+            )
+            }",
+            headersBuilder().build(), body
         )
 
         val response = chain.proceed(request)
@@ -614,11 +630,12 @@ class Kavita : ConfigurableSource, HttpSource() {
             .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         val request = POST(
             "$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${
-                URLEncoder.encode(
-                    "Tachiyomi-Kavita",
-                    "utf-8"
-                )
-            }", headersBuilder().build(), body
+            URLEncoder.encode(
+                "Tachiyomi-Kavita",
+                "utf-8"
+            )
+            }",
+            headersBuilder().build(), body
         )
         client.newCall(request).execute().run {
             if (!isSuccessful) {
@@ -701,4 +718,3 @@ class Kavita : ConfigurableSource, HttpSource() {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
     }
 }
-

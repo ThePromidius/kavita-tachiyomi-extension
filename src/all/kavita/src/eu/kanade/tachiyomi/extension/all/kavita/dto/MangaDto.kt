@@ -39,7 +39,8 @@ data class SeriesDto(
     val thumbnail_url: String? = "",
     val localizedName: String? = "",
     val sortName: String? = "",
-    val summary: String? = "",
+
+    // deprecated: val summary: String? = "",
     val pages: Int,
     val coverImageLocked: Boolean = true,
     val pagesRead: Int,
@@ -54,17 +55,21 @@ data class SeriesDto(
 @Serializable
 data class SeriesMetadataDto(
     val id: Int,
+    val summary: String,
     val writers: List<Person>,
     val artists: List<Person>,
-    val genres: List<String>,
+    val genres: List<Genres>,
     val seriesId: Int,
     val ageRating: Int
 
 )
-
+@Serializable
+data class Genres(
+    val title: String
+)
 @Serializable
 data class Person(
-    val name: String,
+    val name: String
 )
 
 @Serializable

@@ -42,10 +42,12 @@ class KavitaHelper {
         SManga.create().apply {
             url = "$baseUrl/Series/${obj.id}"
             title = obj.name
-            // artist = obj.artist
-            // author = obj.author
-            description = obj.summary
-            // genre = obj.genres.joinToString(", ")
+            //TODO(Should delete this when sure they are not used)
+
+            // Not used: (accessed from MangaDto):  artist = obj.artist
+            // Not used: (accessed from MangaDto):  author = obj.author
+            // Deprecated (accessed from MangaDto): description = obj.summary
+            // Not used: (accessed from MangaDto):  genre = obj.genres.joinToString(", ")
             // status = obj.status
             thumbnail_url = "$baseUrl/image/series-cover?seriesId=${obj.id}"
         }

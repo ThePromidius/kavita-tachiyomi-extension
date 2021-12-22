@@ -235,9 +235,11 @@ class Kavita : ConfigurableSource, HttpSource() {
 
         if (existingSeries != null) {
             val manga = helper.createSeriesDto(existingSeries, baseUrl)
-            manga.artist = result.artists.joinToString { ", " }
-            manga.author = result.writers.joinToString { ", " }
-            manga.genre = result.genres.joinToString { ", " }
+            manga.artist = result.artists.joinToString { "${it.name}" }
+            manga.description = result.summary
+            manga.author = result.writers.joinToString { "${it.name}" }
+            manga.genre = result.genres.joinToString { "${it.title}" }
+
             return manga
         }
 

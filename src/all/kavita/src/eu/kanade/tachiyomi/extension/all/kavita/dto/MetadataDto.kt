@@ -1,7 +1,9 @@
 package eu.kanade.tachiyomi.extension.all.kavita.dto
 
 import kotlinx.serialization.Serializable
-
+/**
+* This file contains all class for filtering
+*  */
 @Serializable
 data class MetadataGenres(
     val id: Int,

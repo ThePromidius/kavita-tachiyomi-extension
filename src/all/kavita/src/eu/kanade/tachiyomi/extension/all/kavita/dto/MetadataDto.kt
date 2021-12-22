@@ -29,6 +29,13 @@ data class MetadataLanguages(
     val isoCode: String,
     val title: String
 )
+@Serializable
+data class MetadataLibrary(
+    val id: Int,
+    val name: String,
+    val type: Int
+)
+
 data class MetadataPayload(
     var readStatus: ArrayList<String> = arrayListOf< String>(),
     var genres: ArrayList<Int> = arrayListOf<Int>(),
@@ -37,4 +44,5 @@ data class MetadataPayload(
     var formats: ArrayList<String> = arrayListOf<String>(),
     var people: ArrayList<Int> = arrayListOf<Int>(),
     var language: ArrayList<String> = arrayListOf<String>(),
+    var libraries: ArrayList<Int> = arrayListOf<Int>()
 )

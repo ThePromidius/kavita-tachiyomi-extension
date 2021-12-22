@@ -12,13 +12,6 @@ enum class MangaFormat(val format: Int) {
 }
 
 @Serializable
-data class LibraryDto(
-    val id: String,
-    val name: String,
-    val type: Int
-)
-
-@Serializable
 data class SeriesDto(
     val id: Int,
     val name: String,

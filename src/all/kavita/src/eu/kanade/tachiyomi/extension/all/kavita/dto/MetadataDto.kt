@@ -31,14 +31,9 @@ data class metadataLanguages(
 )
 data class metadataPayload(
     var readStatus: ArrayList<String> = arrayListOf< String>(),
-
     var genres: ArrayList<Int> = arrayListOf<Int>(),
-
     var people: ArrayList<Int> = arrayListOf<Int>(),
-
     var tags: ArrayList<Int> = arrayListOf<Int>(),
-
     var ageRating: ArrayList<Int> = arrayListOf<Int>(),
-
     var language: ArrayList<String> = arrayListOf<String>(),
 )

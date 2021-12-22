@@ -1,19 +1,6 @@
 package eu.kanade.tachiyomi.extension.all.kavita.dto
 
-import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.serialization.Serializable
-
-@Serializable
-data class UserParams(
-    val pageNumber: Int,
-    val pageSize: Int = 50
-)
-
-@Serializable
-data class FilterDto(
-    val mangaFormat: MangaFormat,
-    val pageSize: Int = 50
-)
 
 @Serializable
 enum class MangaFormat(val format: Int) {
@@ -93,10 +80,6 @@ data class ChapterDto(
     val volumeId: Int,
     val created: String
 )
-
-abstract class KavitaManga : SManga {
-    abstract val id: Int
-}
 
 @Serializable
 data class KavitaComicsSearch(

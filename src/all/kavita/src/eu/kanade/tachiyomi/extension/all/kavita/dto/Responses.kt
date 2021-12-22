@@ -2,7 +2,7 @@ package eu.kanade.tachiyomi.extension.all.kavita.dto
 
 import kotlinx.serialization.Serializable
 
-@Serializable
+@Serializable // Used to process login
 data class AuthenticationDto(
     val username: String,
     val token: String,

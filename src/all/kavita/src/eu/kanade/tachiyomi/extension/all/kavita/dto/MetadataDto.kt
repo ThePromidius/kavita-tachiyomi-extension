@@ -46,5 +46,15 @@ data class MetadataPayload(
     var formats: ArrayList<String> = arrayListOf<String>(),
     var people: ArrayList<Int> = arrayListOf<Int>(),
     var language: ArrayList<String> = arrayListOf<String>(),
-    var libraries: ArrayList<Int> = arrayListOf<Int>()
+    var libraries: ArrayList<Int> = arrayListOf<Int>(),
+
+    var peopleOther: ArrayList<Int> = arrayListOf<Int>(),
+    var peoplewriters: ArrayList<Int> = arrayListOf<Int>(),
+    var peoplepenciller: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleinker: ArrayList<Int> = arrayListOf<Int>(),
+    var peoplepeoplecolorist: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleletterer: ArrayList<Int> = arrayListOf<Int>(),
+    var peoplecoverArtist: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleeditor: ArrayList<Int> = arrayListOf<Int>(),
+    var peoplepublisher: ArrayList<Int> = arrayListOf<Int>(),
 )

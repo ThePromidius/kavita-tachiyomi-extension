@@ -10,7 +10,21 @@ enum class MangaFormat(val format: Int) {
     Epub(3),
     Pdf(4)
 }
-
+enum class PersonRole(val role: Int) {
+    Other(1),
+    Writer(3),
+    Penciller(4),
+    Inker(5),
+    Colorist(6),
+    Letterer(7),
+    CoverArtist(8),
+    Editor(9),
+    Publisher(10);
+    companion object {
+        private val map = PersonRole.values().associateBy(PersonRole::role)
+        fun fromInt(type: Int) = map[type]
+    }
+}
 @Serializable
 data class SeriesDto(
     val id: Int,

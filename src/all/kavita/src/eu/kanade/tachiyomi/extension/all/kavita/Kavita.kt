@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataLibrary
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPayload
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPeople
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataTags
+import eu.kanade.tachiyomi.extension.all.kavita.dto.PersonRole
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesMetadataDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.VolumeDto
@@ -68,7 +69,9 @@ class Kavita : ConfigurableSource, HttpSource() {
     private val helper = KavitaHelper()
     private inline fun <reified T> Response.parseAs(): T =
         use { json.decodeFromString(it.body?.string().orEmpty()) }
-
+    inline fun <reified T : kotlin.Enum<T>> safeValueOf(type: String): T {
+        return java.lang.Enum.valueOf(T::class.java, type)
+    }
     private var libraries = emptyList<MetadataLibrary>()
     private var series = emptyList<SeriesDto>() // Acts as a cache
 
@@ -128,8 +131,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is GenreFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            val DtoObj = genresListMeta.find { it.title == content.name }
-                            toFilter.genres.add(DtoObj!!.id)
+                            toFilter.genres.add(genresListMeta.find { it.title == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -137,8 +139,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is TagFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            val DtoObj = tagsListMeta.find { it.name == content.name }
-                            toFilter.tags.add(DtoObj!!.id)
+                            toFilter.tags.add(tagsListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -146,8 +147,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is AgeRatingFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            val DtoObj = ageRatingsListMeta.find { it.title == content.name }
-                            toFilter.ageRating.add(DtoObj!!.value)
+                            toFilter.ageRating.add(ageRatingsListMeta.find { it.title == content.name }!!.value)
                             isFilterOn = true
                         }
                     }
@@ -160,20 +160,12 @@ class Kavita : ConfigurableSource, HttpSource() {
                         }
                     }
                 }
-                is PeopleFilterGroup -> {
-                    filter.state.forEach { content ->
-                        if (content.state) {
-                            val DtoObj = peopleListMeta.find { it.name == content.name }
-                            toFilter.people.add(DtoObj!!.id)
-                            isFilterOn = true
-                        }
-                    }
-                }
+
                 is LanguageFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            val DtoObj = languagesListMeta.find { it.title == content.name }
-                            toFilter.language.add(DtoObj!!.isoCode)
+                            val DtoObj =
+                                toFilter.language.add(languagesListMeta.find { it.title == content.name }!!.isoCode)
                             isFilterOn = true
                         }
                     }
@@ -181,12 +173,86 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is LibrariesFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            val DtoObj = libraryListMeta.find { it.name == content.name }
-                            toFilter.libraries.add(DtoObj!!.id)
+                            val DtoObj =
+                                toFilter.libraries.add(libraryListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
                 }
+
+                is OtherPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peopleOther.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is WriterPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peoplewriters.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is PencillerPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peoplepenciller.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is InkerPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peopleinker.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is ColoristPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peoplepeoplecolorist.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is LettererPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peopleletterer.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is CoverArtistPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peoplecoverArtist.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is EditorPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peopleeditor.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is PublisherPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peoplepublisher.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+
                 else -> isFilterOn = false
             }
         }
@@ -357,32 +423,55 @@ class Kavita : ConfigurableSource, HttpSource() {
     /**
      *          FILTERING
      * **/
-    private fun fetchMetadataFiltering(chain: Interceptor.Chain) {
+    private fun fetchMetadataFiltering() {
+
         /**
          * Fetchs all user defined metadata (genres, writers, tags, languages, age rating)
          * Called upon opening extenstion after token loged in
          * **/
         if (genresListMeta.isEmpty()) {
             val request = GET("$baseUrl/Metadata/genres", headersBuilder().build())
-            val response = chain.proceed(request)
+            val response = client.newCall(request).execute()
             val requestSuccess = response.code == 200
             if (requestSuccess) {
                 genresListMeta = response.parseAs<List<MetadataGenres>>()
             }
             response.close()
         }
+        // Todo: var otherPeople = emptyList<>()
         if (peopleListMeta.isEmpty()) {
             val request = GET("$baseUrl/Metadata/people", headersBuilder().build())
-            val response = chain.proceed(request)
+            val response = client.newCall(request).execute()
             val requestSuccess = response.code == 200
-            if (requestSuccess) {
+
+            if (requestSuccess) { // peopleListMeta
                 peopleListMeta = response.parseAs<List<MetadataPeople>>()
+
+                    /*
+
+                var testMetaJson = buildJsonObject() {
+                    result.map {
+                        when (it.role) {
+                            1 -> put("Writer",a)
+                            //1 -> peopleOtherListMeta.add(it.role)
+                            3 -> peopleWritersListMeta.add(it.role)
+                            4 -> peoplePencillerListMeta.add(it.role)
+                            5 -> peopleInkerListMeta.add(it.role)
+                            6 -> peopleColoristListMeta.add(it.role)
+                            7 -> peopleLettererListMeta.add(it.role)
+                            8 -> peopleCoverArtistListMeta.add(it.role)
+                            9 -> peopleEditorListMeta.add(it.role)
+                            10 -> peoplePublisherListMeta.add(it.role)
+                            else -> throw IOException("Filtering error")
+                        }
+                    }
+                }*/
             }
             response.close()
         }
         if (tagsListMeta.isEmpty()) {
             val request = GET("$baseUrl/Metadata/tags", headersBuilder().build())
-            val response = chain.proceed(request)
+            val response = client.newCall(request).execute()
             val requestSuccess = response.code == 200
             if (requestSuccess) {
                 tagsListMeta = response.parseAs<List<MetadataTags>>()
@@ -391,7 +480,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         }
         if (ageRatingsListMeta.isEmpty()) {
             val request = GET("$baseUrl/Metadata/age-ratings", headersBuilder().build())
-            val response = chain.proceed(request)
+            val response = client.newCall(request).execute()
             val requestSuccess = response.code == 200
             if (requestSuccess) {
                 ageRatingsListMeta = response.parseAs<List<MetadataAgeRatings>>()
@@ -400,7 +489,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         }
         if (languagesListMeta.isEmpty()) {
             val request = GET("$baseUrl/Metadata/languages", headersBuilder().build())
-            val response = chain.proceed(request)
+            val response = client.newCall(request).execute()
             val requestSuccess = response.code == 200
             if (requestSuccess) {
                 languagesListMeta = response.parseAs<List<MetadataLanguages>>()
@@ -409,7 +498,7 @@ class Kavita : ConfigurableSource, HttpSource() {
         }
         if (libraries.isEmpty()) {
             val request = GET("$baseUrl/Library", headersBuilder().build())
-            val response = chain.proceed(request)
+            val response = client.newCall(request).execute()
             val requestSuccess = response.code == 200
             if (requestSuccess) {
                 libraryListMeta = response.parseAs<List<MetadataLibrary>>()
@@ -425,6 +514,26 @@ class Kavita : ConfigurableSource, HttpSource() {
     var peopleListMeta = emptyList<MetadataPeople>()
     var languagesListMeta = emptyList<MetadataLanguages>()
     var libraryListMeta = emptyList<MetadataLibrary>()
+    val personRoles = listOf<String>(
+        "Other",
+        "Writer",
+        "Penciller",
+        "Inker",
+        "Colorist",
+        "Letterer",
+        "CoverArtist",
+        "Editor",
+        "Publisher"
+    )
+    /*var peopleOtherListMeta = mutableListOf<Int>()
+    var peopleWritersListMeta = mutableListOf<Int>()
+    var peoplePencillerListMeta = mutableListOf<Int>()
+    var peopleInkerListMeta = mutableListOf<Int>()
+    var peopleColoristListMeta = mutableListOf<Int>()
+    var peopleLettererListMeta = mutableListOf<Int>()
+    var peopleCoverArtistListMeta = mutableListOf<Int>()
+    var peopleEditorListMeta = mutableListOf<Int>()
+    var peoplePublisherListMeta = mutableListOf<Int>()*/
 
     private class StatusFilter(name: String) : Filter.CheckBox(name, false)
     private class StatusFilterGroup(filters: List<StatusFilter>) :
@@ -448,27 +557,89 @@ class Kavita : ConfigurableSource, HttpSource() {
     private class LanguageFilter(language: String) : Filter.CheckBox(language, false)
     private class LanguageFilterGroup(languages: List<LanguageFilter>) :
         Filter.Group<LanguageFilter>("Language", languages)
-
-    private class PeopleFilter(people: String) : Filter.CheckBox(people, false)
-    private class PeopleFilterGroup(peoples: List<PeopleFilter>) :
-        Filter.Group<PeopleFilter>("People", peoples)
-
     private class LibraryFilter(library: String) : Filter.CheckBox(library, false)
     private class LibrariesFilterGroup(libraries: List<LibraryFilter>) :
         Filter.Group<LibraryFilter>("Libraries", libraries)
 
+    private class OtherPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class OtherPeopleFilterGroup(peoples: List<OtherPeopleFilter>) :
+        Filter.Group<OtherPeopleFilter>("Other", peoples)
+
+    private class WriterPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class WriterPeopleFilterGroup(peoples: List<WriterPeopleFilter>) :
+        Filter.Group<WriterPeopleFilter>("Writer", peoples)
+
+    private class PencillerPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class PencillerPeopleFilterGroup(peoples: List<PencillerPeopleFilter>) :
+        Filter.Group<PencillerPeopleFilter>("Penciller", peoples)
+
+    private class InkerPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class InkerPeopleFilterGroup(peoples: List<InkerPeopleFilter>) :
+        Filter.Group<InkerPeopleFilter>("Inker", peoples)
+
+    private class ColoristPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class ColoristPeopleFilterGroup(peoples: List<ColoristPeopleFilter>) :
+        Filter.Group<ColoristPeopleFilter>("Colorist", peoples)
+
+    private class LettererPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class LettererPeopleFilterGroup(peoples: List<LettererPeopleFilter>) :
+        Filter.Group<LettererPeopleFilter>("Letterer", peoples)
+
+    private class CoverArtistPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class CoverArtistPeopleFilterGroup(peoples: List<CoverArtistPeopleFilter>) :
+        Filter.Group<CoverArtistPeopleFilter>("CoverArtist", peoples)
+
+    private class EditorPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class EditorPeopleFilterGroup(peoples: List<EditorPeopleFilter>) :
+        Filter.Group<EditorPeopleFilter>("Editor", peoples)
+
+    private class PublisherPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class PublisherPeopleFilterGroup(peoples: List<PublisherPeopleFilter>) :
+        Filter.Group<PublisherPeopleFilter>("Publisher", peoples)
+
     override fun getFilterList(): FilterList {
+        // fetchMetadataFiltering()
         val filters = try {
-            mutableListOf<Filter<*>>(
-                StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
-                GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
-                TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
-                AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
-                FormatsFilterGroup(listOf("Manga", "Archive", "Unknown", "Epub", "Pdf").map { FormatFilter(it) }),
-                PeopleFilterGroup(peopleListMeta.map { PeopleFilter(it.name) }),
-                LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) }),
-                LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) })
-            )
+            val peopleInRoles = mutableListOf<List<MetadataPeople>>()
+            personRoles.map { role ->
+                var peoplesWithRole = mutableListOf<MetadataPeople>()
+                peopleListMeta.map {
+                    if (it.role == safeValueOf<PersonRole>(role)!!.role) {
+                        peoplesWithRole.add(it)
+                    }
+                }
+                peopleInRoles.add(peoplesWithRole)
+            }
+            try {
+                mutableListOf<Filter<*>>(
+                    StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
+                    GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
+                    TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
+                    AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
+                    FormatsFilterGroup(listOf("Manga", "Archive", "Unknown", "Epub", "Pdf").map { FormatFilter(it) }),
+
+                    LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) }),
+                    LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) }),
+                    OtherPeopleFilterGroup(peopleInRoles.get(0).map { OtherPeopleFilter(it.name) }),
+                    WriterPeopleFilterGroup(peopleInRoles.get(1).map { WriterPeopleFilter(it.name) }),
+                    PencillerPeopleFilterGroup(peopleInRoles.get(2).map { PencillerPeopleFilter(it.name) }),
+                    InkerPeopleFilterGroup(peopleInRoles.get(3).map { InkerPeopleFilter(it.name) }),
+                    ColoristPeopleFilterGroup(peopleInRoles.get(4).map { ColoristPeopleFilter(it.name) }),
+                    LettererPeopleFilterGroup(peopleInRoles.get(5).map { LettererPeopleFilter(it.name) }),
+                    CoverArtistPeopleFilterGroup(peopleInRoles.get(6).map { CoverArtistPeopleFilter(it.name) }),
+                    EditorPeopleFilterGroup(peopleInRoles.get(7).map { EditorPeopleFilter(it.name) }),
+                    PublisherPeopleFilterGroup(peopleInRoles.get(8).map { PublisherPeopleFilter(it.name) }),
+                )
+            } catch (e: Exception) {
+                println("Error on filtering creation")
+                mutableListOf<Filter<*>>(
+                    StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
+                    GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
+                    TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
+                    AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
+                    FormatsFilterGroup(listOf("Manga", "Archive", "Unknown", "Epub", "Pdf").map { FormatFilter(it) }),
+                )
+            }
         } catch (e: Exception) {
             println("Exception:\n$e")
             emptyList()
@@ -524,14 +695,14 @@ class Kavita : ConfigurableSource, HttpSource() {
                 }
             )
             put("genres", buildJsonArray { filter.genres.map { add(it) } })
-            put("writers", buildJsonArray { filter.people.map { add(it) } })
-            put("penciller", buildJsonArray {})
-            put("inker", buildJsonArray {})
-            put("colorist", buildJsonArray {})
-            put("letterer", buildJsonArray {})
-            put("coverArtist", buildJsonArray {})
-            put("editor", buildJsonArray {})
-            put("publisher", buildJsonArray {})
+            put("writers", buildJsonArray { filter.peoplewriters.map { add(it) } })
+            put("penciller", buildJsonArray { filter.peoplepenciller.map { add(it) } })
+            put("inker", buildJsonArray { filter.peopleinker.map { add(it) } })
+            put("colorist", buildJsonArray { filter.peoplepeoplecolorist.map { add(it) } })
+            put("letterer", buildJsonArray { filter.peopleletterer.map { add(it) } })
+            put("coverArtist", buildJsonArray { filter.peoplecoverArtist.map { add(it) } })
+            put("editor", buildJsonArray { filter.peopleeditor.map { add(it) } })
+            put("publisher", buildJsonArray { filter.peoplepublisher.map { add(it) } })
             put("character", buildJsonArray {})
             put("translators", buildJsonArray {})
             put("collectionTags", buildJsonArray {})
@@ -577,7 +748,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 }
             }
             response.close()
-            fetchMetadataFiltering(chain)
+            fetchMetadataFiltering()
 
             return requestSuccess
         } else { return true }

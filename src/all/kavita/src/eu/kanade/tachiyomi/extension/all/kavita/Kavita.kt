@@ -90,7 +90,6 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
-        println("latestUpdatesRequest Page: $page")
         return POST(
             "$baseUrl/series/recently-added?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -115,6 +114,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     var isFilterOn = false // If any filter option is enabled this is true
     var toFilter = MetadataPayload()
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        toFilter = MetadataPayload() // need to reset it or will double
         filters.forEach { filter ->
             when (filter) {
                 is StatusFilterGroup -> {
@@ -215,10 +215,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     private fun searchMangaFromObject(obj: KavitaComicsSearch): SManga = SManga.create().apply {
         title = obj.name
         thumbnail_url = "$baseUrl/Image/series-cover?seriesId=${obj.seriesId}"
-        println("url")
-        println(thumbnail_url)
         description = "None"
-        println(description)
         url = "${obj.seriesId}"
     }
 
@@ -226,8 +223,6 @@ class Kavita : ConfigurableSource, HttpSource() {
      * MANGA DETAILS (metadata about series)
      * **/
     override fun mangaDetailsRequest(manga: SManga): Request {
-        println("mangaDetailsRequest")
-        println(manga.url)
         return GET(
             "$baseUrl/series/metadata?seriesId=${helper.getIdFromUrl(manga.url)}",
             headersBuilder().build()
@@ -235,12 +230,10 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
-        println("mangaDetailsParse")
         val result = response.parseAs<SeriesMetadataDto>()
         val existingSeries = series.find { dto -> dto.id == result.seriesId }
 
         if (existingSeries != null) {
-            println("Found existing series")
             val manga = helper.createSeriesDto(existingSeries, baseUrl)
             manga.artist = result.artists.joinToString { ", " }
             manga.author = result.writers.joinToString { ", " }
@@ -266,8 +259,6 @@ class Kavita : ConfigurableSource, HttpSource() {
     }
 
     private fun chapterFromObject(obj: ChapterDto): SChapter = SChapter.create().apply {
-        println("Chapter")
-        println(obj)
         url = obj.id.toString()
         if (obj.number == "0" && obj.isSpecial) {
             name = obj.range
@@ -325,12 +316,11 @@ class Kavita : ConfigurableSource, HttpSource() {
                 }
             }
             allChapterList.reverse()
-            println(allChapterList)
             return allChapterList
         } catch (e: Exception) {
             println("EXCEPTION")
             println(e)
-            throw e
+            throw IOException(e)
         }
     }
 
@@ -375,7 +365,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             val response = chain.proceed(request)
             val requestSuccess = response.code == 200
             if (requestSuccess) {
-                println("Genres Fetch successful")
                 genresListMeta = response.parseAs<List<MetadataGenres>>()
             }
             response.close()
@@ -385,7 +374,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             val response = chain.proceed(request)
             val requestSuccess = response.code == 200
             if (requestSuccess) {
-                println("People Fetch successful")
                 peopleListMeta = response.parseAs<List<MetadataPeople>>()
             }
             response.close()
@@ -395,7 +383,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             val response = chain.proceed(request)
             val requestSuccess = response.code == 200
             if (requestSuccess) {
-                println("Tags Fetch successful")
                 tagsListMeta = response.parseAs<List<MetadataTags>>()
             }
             response.close()
@@ -405,7 +392,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             val response = chain.proceed(request)
             val requestSuccess = response.code == 200
             if (requestSuccess) {
-                println("Age Ratings Fetch successful")
                 ageRatingsListMeta = response.parseAs<List<MetadataAgeRatings>>()
             }
             response.close()
@@ -415,7 +401,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             val response = chain.proceed(request)
             val requestSuccess = response.code == 200
             if (requestSuccess) {
-                println("Languages Fetch successful")
                 languagesListMeta = response.parseAs<List<MetadataLanguages>>()
             }
             response.close()
@@ -425,7 +410,6 @@ class Kavita : ConfigurableSource, HttpSource() {
             val response = chain.proceed(request)
             val requestSuccess = response.code == 200
             if (requestSuccess) {
-                println("Libaries Fetch successful")
                 libraryListMeta = response.parseAs<List<MetadataLibrary>>()
             }
             response.close()
@@ -566,33 +550,35 @@ class Kavita : ConfigurableSource, HttpSource() {
             .build()
 
     private fun authenticateAndSetToken(chain: Interceptor.Chain): Boolean {
-        println("Performing Authentication...")
-        val jsonObject = JSONObject()
-        val body = jsonObject.toString()
-            .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-        val request = POST(
-            "$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${
-            URLEncoder.encode(
-                "Tachiyomi-Kavita",
-                "utf-8"
+        if (!isLoged) {
+            println("Performing Authentication...")
+            val jsonObject = JSONObject()
+            val body = jsonObject.toString()
+                .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+            val request = POST(
+                "$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${
+                URLEncoder.encode(
+                    "Tachiyomi-Kavita",
+                    "utf-8"
+                )
+                }",
+                headersBuilder().build(), body
             )
-            }",
-            headersBuilder().build(), body
-        )
 
-        val response = chain.proceed(request)
-        val requestSuccess = response.code == 200
-        if (requestSuccess) {
-            println("Authentication successful")
-            val result = response.parseAs<AuthenticationDto>()
-            if (result.token.isNotEmpty()) {
-                jwtToken = result.token
+            val response = chain.proceed(request)
+            val requestSuccess = response.code == 200
+            if (requestSuccess) {
+                println("Authentication successful")
+                val result = response.parseAs<AuthenticationDto>()
+                if (result.token.isNotEmpty()) {
+                    jwtToken = result.token
+                }
             }
-        }
-        response.close()
-        fetchMetadataFiltering(chain)
+            response.close()
+            fetchMetadataFiltering(chain)
 
-        return requestSuccess
+            return requestSuccess
+        } else { return true }
     }
 
     private fun authIntercept(chain: Interceptor.Chain): Response {

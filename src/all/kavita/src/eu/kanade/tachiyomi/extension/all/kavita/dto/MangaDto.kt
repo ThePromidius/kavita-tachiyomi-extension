@@ -8,7 +8,11 @@ enum class MangaFormat(val format: Int) {
     Archive(1),
     Unknown(2),
     Epub(3),
-    Pdf(4)
+    Pdf(4);
+    companion object {
+        private val map = PersonRole.values().associateBy(PersonRole::role)
+        fun fromInt(type: Int) = map[type]
+    }
 }
 enum class PersonRole(val role: Int) {
     Other(1),
@@ -19,7 +23,9 @@ enum class PersonRole(val role: Int) {
     Letterer(7),
     CoverArtist(8),
     Editor(9),
-    Publisher(10);
+    Publisher(10),
+    Character(11),
+    Translator(12);
     companion object {
         private val map = PersonRole.values().associateBy(PersonRole::role)
         fun fromInt(type: Int) = map[type]

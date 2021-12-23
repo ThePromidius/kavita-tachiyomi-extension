@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.ChapterDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.KavitaComicsSearch
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MangaFormat
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataAgeRatings
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataCollections
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataGenres
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataLanguages
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataLibrary
@@ -154,18 +155,26 @@ class Kavita : ConfigurableSource, HttpSource() {
                 }
                 is FormatsFilterGroup -> {
                     filter.state.forEach { content ->
+                        // TODO("redo using new MangaFormat companion obj. ")
                         if (content.state) {
                             toFilter.formats.add(content.name)
                             isFilterOn = true
                         }
                     }
                 }
-
+                is CollectionFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.collections.add(collectionsListMeta.find { it.title == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                // TODO("Add rating filter. Not nullable. Ask if default 0 would work")
                 is LanguageFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            val DtoObj =
-                                toFilter.language.add(languagesListMeta.find { it.title == content.name }!!.isoCode)
+                            toFilter.language.add(languagesListMeta.find { it.title == content.name }!!.isoCode)
                             isFilterOn = true
                         }
                     }
@@ -173,8 +182,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is LibrariesFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            val DtoObj =
-                                toFilter.libraries.add(libraryListMeta.find { it.name == content.name }!!.id)
+                            toFilter.libraries.add(libraryListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -191,7 +199,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is WriterPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            toFilter.peoplewriters.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            toFilter.peopleWriters.add(peopleListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -199,7 +207,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is PencillerPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            toFilter.peoplepenciller.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            toFilter.peoplePenciller.add(peopleListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -207,7 +215,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is InkerPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            toFilter.peopleinker.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            toFilter.peopleInker.add(peopleListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -215,7 +223,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is ColoristPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            toFilter.peoplepeoplecolorist.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            toFilter.peoplePeoplecolorist.add(peopleListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -223,7 +231,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is LettererPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            toFilter.peopleletterer.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            toFilter.peopleLetterer.add(peopleListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -231,7 +239,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is CoverArtistPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            toFilter.peoplecoverArtist.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            toFilter.peopleCoverArtist.add(peopleListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -239,7 +247,7 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is EditorPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            toFilter.peopleeditor.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            toFilter.peopleEditor.add(peopleListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -247,7 +255,23 @@ class Kavita : ConfigurableSource, HttpSource() {
                 is PublisherPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            toFilter.peoplepublisher.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            toFilter.peoplePublisher.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is CharacterPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peopleCharacter.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+                is TranslatorPeopleFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.peopleTranslator.add(peopleListMeta.find { it.name == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -429,43 +453,13 @@ class Kavita : ConfigurableSource, HttpSource() {
          * Fetchs all user defined metadata (genres, writers, tags, languages, age rating)
          * Called upon opening extenstion after token loged in
          * **/
+
         if (genresListMeta.isEmpty()) {
             val request = GET("$baseUrl/Metadata/genres", headersBuilder().build())
             val response = client.newCall(request).execute()
             val requestSuccess = response.code == 200
             if (requestSuccess) {
                 genresListMeta = response.parseAs<List<MetadataGenres>>()
-            }
-            response.close()
-        }
-        // Todo: var otherPeople = emptyList<>()
-        if (peopleListMeta.isEmpty()) {
-            val request = GET("$baseUrl/Metadata/people", headersBuilder().build())
-            val response = client.newCall(request).execute()
-            val requestSuccess = response.code == 200
-
-            if (requestSuccess) { // peopleListMeta
-                peopleListMeta = response.parseAs<List<MetadataPeople>>()
-
-                    /*
-
-                var testMetaJson = buildJsonObject() {
-                    result.map {
-                        when (it.role) {
-                            1 -> put("Writer",a)
-                            //1 -> peopleOtherListMeta.add(it.role)
-                            3 -> peopleWritersListMeta.add(it.role)
-                            4 -> peoplePencillerListMeta.add(it.role)
-                            5 -> peopleInkerListMeta.add(it.role)
-                            6 -> peopleColoristListMeta.add(it.role)
-                            7 -> peopleLettererListMeta.add(it.role)
-                            8 -> peopleCoverArtistListMeta.add(it.role)
-                            9 -> peopleEditorListMeta.add(it.role)
-                            10 -> peoplePublisherListMeta.add(it.role)
-                            else -> throw IOException("Filtering error")
-                        }
-                    }
-                }*/
             }
             response.close()
         }
@@ -487,6 +481,15 @@ class Kavita : ConfigurableSource, HttpSource() {
             }
             response.close()
         }
+        if (collectionsListMeta.isEmpty()) {
+            val request = GET("$baseUrl/Collection", headersBuilder().build())
+            val response = client.newCall(request).execute()
+            val requestSuccess = response.code == 200
+            if (requestSuccess) {
+                collectionsListMeta = response.parseAs<List<MetadataCollections>>()
+            }
+            response.close()
+        }
         if (languagesListMeta.isEmpty()) {
             val request = GET("$baseUrl/Metadata/languages", headersBuilder().build())
             val response = client.newCall(request).execute()
@@ -505,6 +508,17 @@ class Kavita : ConfigurableSource, HttpSource() {
             }
             response.close()
         }
+
+        if (peopleListMeta.isEmpty()) {
+            val request = GET("$baseUrl/Metadata/people", headersBuilder().build())
+            val response = client.newCall(request).execute()
+            val requestSuccess = response.code == 200
+
+            if (requestSuccess) { // peopleListMeta
+                peopleListMeta = response.parseAs<List<MetadataPeople>>()
+            }
+            response.close()
+        }
     }
 
     /** Some variable names already exist. im not good at naming add Meta suffix */
@@ -514,6 +528,7 @@ class Kavita : ConfigurableSource, HttpSource() {
     var peopleListMeta = emptyList<MetadataPeople>()
     var languagesListMeta = emptyList<MetadataLanguages>()
     var libraryListMeta = emptyList<MetadataLibrary>()
+    var collectionsListMeta = emptyList<MetadataCollections>()
     val personRoles = listOf<String>(
         "Other",
         "Writer",
@@ -523,7 +538,9 @@ class Kavita : ConfigurableSource, HttpSource() {
         "Letterer",
         "CoverArtist",
         "Editor",
-        "Publisher"
+        "Publisher",
+        "Character",
+        "Translator"
     )
     /*var peopleOtherListMeta = mutableListOf<Int>()
     var peopleWritersListMeta = mutableListOf<Int>()
@@ -539,14 +556,14 @@ class Kavita : ConfigurableSource, HttpSource() {
     private class StatusFilterGroup(filters: List<StatusFilter>) :
         Filter.Group<StatusFilter>("Status", filters)
 
-    private class GenreFilter(genre: String) : Filter.CheckBox(genre, false)
+    private class GenreFilter(name: String) : Filter.CheckBox(name, false)
     private class GenreFilterGroup(genres: List<GenreFilter>) :
         Filter.Group<GenreFilter>("Genres", genres)
 
-    private class TagFilter(tag: String) : Filter.CheckBox(tag, false)
+    private class TagFilter(name: String) : Filter.CheckBox(name, false)
     private class TagFilterGroup(tags: List<TagFilter>) : Filter.Group<TagFilter>("Tags", tags)
 
-    private class AgeRatingFilter(ageRating: String) : Filter.CheckBox(ageRating, false)
+    private class AgeRatingFilter(name: String) : Filter.CheckBox(name, false)
     private class AgeRatingFilterGroup(ageRatings: List<AgeRatingFilter>) :
         Filter.Group<AgeRatingFilter>("Age-Rating", ageRatings)
 
@@ -554,48 +571,60 @@ class Kavita : ConfigurableSource, HttpSource() {
     private class FormatsFilterGroup(formats: List<FormatFilter>) :
         Filter.Group<FormatFilter>("Formats", formats)
 
-    private class LanguageFilter(language: String) : Filter.CheckBox(language, false)
+    private class CollectionFilter(name: String) : Filter.CheckBox(name, false)
+    private class CollectionFilterGroup(collections: List<CollectionFilter>) :
+        Filter.Group<CollectionFilter>("Collection", collections)
+
+    private class LanguageFilter(name: String) : Filter.CheckBox(name, false)
     private class LanguageFilterGroup(languages: List<LanguageFilter>) :
         Filter.Group<LanguageFilter>("Language", languages)
     private class LibraryFilter(library: String) : Filter.CheckBox(library, false)
     private class LibrariesFilterGroup(libraries: List<LibraryFilter>) :
         Filter.Group<LibraryFilter>("Libraries", libraries)
 
-    private class OtherPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class OtherPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class OtherPeopleFilterGroup(peoples: List<OtherPeopleFilter>) :
         Filter.Group<OtherPeopleFilter>("Other", peoples)
 
-    private class WriterPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class WriterPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class WriterPeopleFilterGroup(peoples: List<WriterPeopleFilter>) :
         Filter.Group<WriterPeopleFilter>("Writer", peoples)
 
-    private class PencillerPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class PencillerPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class PencillerPeopleFilterGroup(peoples: List<PencillerPeopleFilter>) :
         Filter.Group<PencillerPeopleFilter>("Penciller", peoples)
 
-    private class InkerPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class InkerPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class InkerPeopleFilterGroup(peoples: List<InkerPeopleFilter>) :
         Filter.Group<InkerPeopleFilter>("Inker", peoples)
 
-    private class ColoristPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class ColoristPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class ColoristPeopleFilterGroup(peoples: List<ColoristPeopleFilter>) :
         Filter.Group<ColoristPeopleFilter>("Colorist", peoples)
 
-    private class LettererPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class LettererPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class LettererPeopleFilterGroup(peoples: List<LettererPeopleFilter>) :
         Filter.Group<LettererPeopleFilter>("Letterer", peoples)
 
-    private class CoverArtistPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class CoverArtistPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class CoverArtistPeopleFilterGroup(peoples: List<CoverArtistPeopleFilter>) :
         Filter.Group<CoverArtistPeopleFilter>("CoverArtist", peoples)
 
-    private class EditorPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class EditorPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class EditorPeopleFilterGroup(peoples: List<EditorPeopleFilter>) :
         Filter.Group<EditorPeopleFilter>("Editor", peoples)
 
-    private class PublisherPeopleFilter(people: String) : Filter.CheckBox(people, false)
+    private class PublisherPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class PublisherPeopleFilterGroup(peoples: List<PublisherPeopleFilter>) :
         Filter.Group<PublisherPeopleFilter>("Publisher", peoples)
+
+    private class CharacterPeopleFilter(name: String) : Filter.CheckBox(name, false)
+    private class CharacterPeopleFilterGroup(peoples: List<CharacterPeopleFilter>) :
+        Filter.Group<CharacterPeopleFilter>("Character", peoples)
+
+    private class TranslatorPeopleFilter(name: String) : Filter.CheckBox(name, false)
+    private class TranslatorPeopleFilterGroup(peoples: List<TranslatorPeopleFilter>) :
+        Filter.Group<TranslatorPeopleFilter>("Translator", peoples)
 
     override fun getFilterList(): FilterList {
         // fetchMetadataFiltering()
@@ -610,36 +639,28 @@ class Kavita : ConfigurableSource, HttpSource() {
                 }
                 peopleInRoles.add(peoplesWithRole)
             }
-            try {
-                mutableListOf<Filter<*>>(
-                    StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
-                    GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
-                    TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
-                    AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
-                    FormatsFilterGroup(listOf("Manga", "Archive", "Unknown", "Epub", "Pdf").map { FormatFilter(it) }),
-
-                    LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) }),
-                    LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) }),
-                    OtherPeopleFilterGroup(peopleInRoles.get(0).map { OtherPeopleFilter(it.name) }),
-                    WriterPeopleFilterGroup(peopleInRoles.get(1).map { WriterPeopleFilter(it.name) }),
-                    PencillerPeopleFilterGroup(peopleInRoles.get(2).map { PencillerPeopleFilter(it.name) }),
-                    InkerPeopleFilterGroup(peopleInRoles.get(3).map { InkerPeopleFilter(it.name) }),
-                    ColoristPeopleFilterGroup(peopleInRoles.get(4).map { ColoristPeopleFilter(it.name) }),
-                    LettererPeopleFilterGroup(peopleInRoles.get(5).map { LettererPeopleFilter(it.name) }),
-                    CoverArtistPeopleFilterGroup(peopleInRoles.get(6).map { CoverArtistPeopleFilter(it.name) }),
-                    EditorPeopleFilterGroup(peopleInRoles.get(7).map { EditorPeopleFilter(it.name) }),
-                    PublisherPeopleFilterGroup(peopleInRoles.get(8).map { PublisherPeopleFilter(it.name) }),
-                )
-            } catch (e: Exception) {
-                println("Error on filtering creation")
-                mutableListOf<Filter<*>>(
-                    StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
-                    GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
-                    TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
-                    AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
-                    FormatsFilterGroup(listOf("Manga", "Archive", "Unknown", "Epub", "Pdf").map { FormatFilter(it) }),
-                )
-            }
+            mutableListOf<Filter<*>>(
+                StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
+                GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
+                TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
+                AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
+                FormatsFilterGroup(listOf("Manga", "Archive", "Unknown", "Epub", "Pdf").map { FormatFilter(it) }),
+                CollectionFilterGroup(collectionsListMeta.map { CollectionFilter(it.title) }),
+                LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) }),
+                LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) }),
+                // People Metadata:
+                OtherPeopleFilterGroup(peopleInRoles.get(0).map { OtherPeopleFilter(it.name) }),
+                WriterPeopleFilterGroup(peopleInRoles.get(1).map { WriterPeopleFilter(it.name) }),
+                PencillerPeopleFilterGroup(peopleInRoles.get(2).map { PencillerPeopleFilter(it.name) }),
+                InkerPeopleFilterGroup(peopleInRoles.get(3).map { InkerPeopleFilter(it.name) }),
+                ColoristPeopleFilterGroup(peopleInRoles.get(4).map { ColoristPeopleFilter(it.name) }),
+                LettererPeopleFilterGroup(peopleInRoles.get(5).map { LettererPeopleFilter(it.name) }),
+                CoverArtistPeopleFilterGroup(peopleInRoles.get(6).map { CoverArtistPeopleFilter(it.name) }),
+                EditorPeopleFilterGroup(peopleInRoles.get(7).map { EditorPeopleFilter(it.name) }),
+                PublisherPeopleFilterGroup(peopleInRoles.get(8).map { PublisherPeopleFilter(it.name) }),
+                CharacterPeopleFilterGroup(peopleInRoles.get(9).map { CharacterPeopleFilter(it.name) }),
+                TranslatorPeopleFilterGroup(peopleInRoles.get(10).map { TranslatorPeopleFilter(it.name) }),
+            )
         } catch (e: Exception) {
             println("Exception:\n$e")
             emptyList()
@@ -695,17 +716,17 @@ class Kavita : ConfigurableSource, HttpSource() {
                 }
             )
             put("genres", buildJsonArray { filter.genres.map { add(it) } })
-            put("writers", buildJsonArray { filter.peoplewriters.map { add(it) } })
-            put("penciller", buildJsonArray { filter.peoplepenciller.map { add(it) } })
-            put("inker", buildJsonArray { filter.peopleinker.map { add(it) } })
-            put("colorist", buildJsonArray { filter.peoplepeoplecolorist.map { add(it) } })
-            put("letterer", buildJsonArray { filter.peopleletterer.map { add(it) } })
-            put("coverArtist", buildJsonArray { filter.peoplecoverArtist.map { add(it) } })
-            put("editor", buildJsonArray { filter.peopleeditor.map { add(it) } })
-            put("publisher", buildJsonArray { filter.peoplepublisher.map { add(it) } })
-            put("character", buildJsonArray {})
-            put("translators", buildJsonArray {})
-            put("collectionTags", buildJsonArray {})
+            put("writers", buildJsonArray { filter.peopleWriters.map { add(it) } })
+            put("penciller", buildJsonArray { filter.peoplePenciller.map { add(it) } })
+            put("inker", buildJsonArray { filter.peopleInker.map { add(it) } })
+            put("colorist", buildJsonArray { filter.peoplePeoplecolorist.map { add(it) } })
+            put("letterer", buildJsonArray { filter.peopleLetterer.map { add(it) } })
+            put("coverArtist", buildJsonArray { filter.peopleCoverArtist.map { add(it) } })
+            put("editor", buildJsonArray { filter.peopleEditor.map { add(it) } })
+            put("publisher", buildJsonArray { filter.peoplePublisher.map { add(it) } })
+            put("character", buildJsonArray { filter.peopleCharacter.map { add(it) } })
+            put("translators", buildJsonArray { filter.peopleTranslator.map { add(it) } })
+            put("collectionTags", buildJsonArray { filter.collections.map { add(it) } })
             put("languages", buildJsonArray { filter.language.map { add(it) } })
             put("tags", buildJsonArray { filter.tags.map { add(it) } })
             put("rating", 0)

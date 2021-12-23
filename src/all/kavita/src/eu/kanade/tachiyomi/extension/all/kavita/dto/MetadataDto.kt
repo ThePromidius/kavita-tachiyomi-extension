@@ -37,6 +37,11 @@ data class MetadataLibrary(
     val name: String,
     val type: Int
 )
+@Serializable
+data class MetadataCollections(
+    val id: Int,
+    val title: String,
+)
 
 data class MetadataPayload(
     var readStatus: ArrayList<String> = arrayListOf< String>(),
@@ -44,17 +49,21 @@ data class MetadataPayload(
     var tags: ArrayList<Int> = arrayListOf<Int>(),
     var ageRating: ArrayList<Int> = arrayListOf<Int>(),
     var formats: ArrayList<String> = arrayListOf<String>(),
+    var collections: ArrayList<Int> = arrayListOf<Int>(),
+
     var people: ArrayList<Int> = arrayListOf<Int>(),
     var language: ArrayList<String> = arrayListOf<String>(),
     var libraries: ArrayList<Int> = arrayListOf<Int>(),
 
     var peopleOther: ArrayList<Int> = arrayListOf<Int>(),
-    var peoplewriters: ArrayList<Int> = arrayListOf<Int>(),
-    var peoplepenciller: ArrayList<Int> = arrayListOf<Int>(),
-    var peopleinker: ArrayList<Int> = arrayListOf<Int>(),
-    var peoplepeoplecolorist: ArrayList<Int> = arrayListOf<Int>(),
-    var peopleletterer: ArrayList<Int> = arrayListOf<Int>(),
-    var peoplecoverArtist: ArrayList<Int> = arrayListOf<Int>(),
-    var peopleeditor: ArrayList<Int> = arrayListOf<Int>(),
-    var peoplepublisher: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleWriters: ArrayList<Int> = arrayListOf<Int>(),
+    var peoplePenciller: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleInker: ArrayList<Int> = arrayListOf<Int>(),
+    var peoplePeoplecolorist: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleLetterer: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleCoverArtist: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleEditor: ArrayList<Int> = arrayListOf<Int>(),
+    var peoplePublisher: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleCharacter: ArrayList<Int> = arrayListOf<Int>(),
+    var peopleTranslator: ArrayList<Int> = arrayListOf<Int>(),
 )

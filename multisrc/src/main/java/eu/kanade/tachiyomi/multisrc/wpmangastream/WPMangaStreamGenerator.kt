@@ -35,7 +35,7 @@ class WPMangaStreamGenerator : ThemeSourceGenerator {
         SingleLang("Komik AV", "https://komikav.com", "id", overrideVersionCode = 1),
         SingleLang("Komik Cast", "https://komikcast.com", "id", overrideVersionCode = 8),
         SingleLang("West Manga", "https://westmanga.info", "id", overrideVersionCode = 1),
-        SingleLang("MangaSwat", "https://mangaswat.com", "ar", overrideVersionCode = 3),
+        SingleLang("MangaSwat", "https://swatmanga.co", "ar", overrideVersionCode = 4),
         SingleLang("Manga Raw.org", "https://mangaraw.org", "ja", className = "MangaRawOrg", overrideVersionCode = 1),
         SingleLang("Manga Pro Z", "https://mangaproz.com", "ar"),
         SingleLang("Mihentai", "https://mihentai.com", "en", isNsfw = true, overrideVersionCode = 1),
@@ -43,17 +43,17 @@ class WPMangaStreamGenerator : ThemeSourceGenerator {
         SingleLang("Tempest Manga", "https://manga.tempestfansub.com", "tr"),
         SingleLang("xCaliBR Scans", "https://xcalibrscans.com", "en", overrideVersionCode = 2),
         SingleLang("NoxSubs", "https://noxsubs.com", "tr"),
-        SingleLang("World Romance Translation", "https://wrt.my.id", "id", overrideVersionCode = 3),
+        SingleLang("World Romance Translation", "https://wrt.my.id", "id", overrideVersionCode = 4),
         SingleLang("The Apollo Team", "https://theapollo.team", "en"),
         SingleLang("Sekte Doujin", "https://sektedoujin.xyz", "id", isNsfw = true, overrideVersionCode = 2),
         SingleLang("Phoenix Fansub", "https://phoenixfansub.com", "es", overrideVersionCode = 1),
-        SingleLang("Imagine Scan", "https://imaginescan.com.br", "pt-BR", isNsfw = true),
-        SingleLang("Vapo Scan", "https://vaposcans.com", "pt-BR", overrideVersionCode = 2),
+        SingleLang("Imagine Scan", "https://imaginescan.com.br", "pt-BR", isNsfw = true, overrideVersionCode = 1),
+        SingleLang("Vapo Scan", "https://vaposcans.com", "pt-BR", overrideVersionCode = 3),
         SingleLang("Hakai Scan", "http://hakaiscan.xyz", "pt-BR", isNsfw = true),
         SingleLang("Snudae Scans", "https://snudaescans.com", "en", isNsfw = true, className = "BatotoScans", overrideVersionCode = 1),
         SingleLang("Random Scans", "https://randomscans.xyz", "en"),
         SingleLang("Fênix Scanlator", "https://fenixscanlator.xyz", "pt-BR", className = "FenixScanlator", overrideVersionCode = 2),
-        SingleLang("Phantom Scans", "https://phantomscans.com", "en")
+        SingleLang("Phantom Scans", "https://phantomscans.com", "en", overrideVersionCode = 1)
     )
 
     companion object {

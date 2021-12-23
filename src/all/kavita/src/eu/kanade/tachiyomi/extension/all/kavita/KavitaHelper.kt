@@ -42,7 +42,7 @@ class KavitaHelper {
         SManga.create().apply {
             url = "$baseUrl/Series/${obj.id}"
             title = obj.name
-            description = obj.summary
+            // Deprecated: description = obj.summary
             thumbnail_url = "$baseUrl/image/series-cover?seriesId=${obj.id}"
         }
 }

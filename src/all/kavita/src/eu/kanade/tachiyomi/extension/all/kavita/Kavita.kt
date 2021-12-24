@@ -355,7 +355,8 @@ class Kavita : ConfigurableSource, HttpSource() {
         if (obj.number == "0" && obj.isSpecial) {
             name = obj.range
         } else {
-            name = "Chapter ${obj.number}"
+            val cleanedName = obj.title.replaceFirst("^0+(?!$)".toRegex(), "")
+            name = "Chapter $cleanedName"
         }
         date_upload = helper.parseDate(obj.created)
         chapter_number = obj.number.toFloat()

@@ -287,7 +287,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override fun searchMangaParse(response: Response): MangasPage {
         if (isFilterOn) {
-            //isFilterOn = false
+            // isFilterOn = false
             return popularMangaParse(response)
         } else {
             if (response.request.url.toString().contains("api/series/all"))
@@ -573,14 +573,17 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) }),
                 // People Metadata:
                 OtherPeopleFilterGroup(
-                    peopleInRoles[0].map { OtherPeopleFilter(it.name) }),
+                    peopleInRoles[0].map { OtherPeopleFilter(it.name) }
+                ),
                 WriterPeopleFilterGroup(
-                    peopleInRoles[1].map { WriterPeopleFilter(it.name) }),
+                    peopleInRoles[1].map { WriterPeopleFilter(it.name) }
+                ),
                 PencillerPeopleFilterGroup(
                     peopleInRoles[2].map { PencillerPeopleFilter(it.name) }
                 ),
                 InkerPeopleFilterGroup(
-                    peopleInRoles[3].map { InkerPeopleFilter(it.name) }),
+                    peopleInRoles[3].map { InkerPeopleFilter(it.name) }
+                ),
                 ColoristPeopleFilterGroup(
                     peopleInRoles[4].map { ColoristPeopleFilter(it.name) }
                 ),
@@ -591,7 +594,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     peopleInRoles[6].map { CoverArtistPeopleFilter(it.name) }
                 ),
                 EditorPeopleFilterGroup(
-                    peopleInRoles[7].map { EditorPeopleFilter(it.name) }),
+                    peopleInRoles[7].map { EditorPeopleFilter(it.name) }
+                ),
                 PublisherPeopleFilterGroup(
                     peopleInRoles[8].map { PublisherPeopleFilter(it.name) }
                 ),
@@ -734,7 +738,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         }
     }
 
-    //private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
+    // private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
     private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
 
     // We strip the last slash since we will append it above

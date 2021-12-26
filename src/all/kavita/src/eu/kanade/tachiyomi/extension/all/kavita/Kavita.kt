@@ -634,7 +634,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             filter = MetadataPayload()
         }
 
-        val formats = if (filter.formats.isNotEmpty()) {
+        val formats = if (filter.formats.isEmpty()) {
             buildJsonArray {
                 add(MangaFormat.Archive.ordinal)
                 add(MangaFormat.Image.ordinal)

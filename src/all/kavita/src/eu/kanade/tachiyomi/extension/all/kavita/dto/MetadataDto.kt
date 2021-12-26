@@ -48,7 +48,7 @@ data class MetadataPayload(
     var genres: ArrayList<Int> = arrayListOf<Int>(),
     var tags: ArrayList<Int> = arrayListOf<Int>(),
     var ageRating: ArrayList<Int> = arrayListOf<Int>(),
-    var formats: ArrayList<String> = arrayListOf<String>(),
+    var formats: ArrayList<Int> = arrayListOf<Int>(),
     var collections: ArrayList<Int> = arrayListOf<Int>(),
 
     var people: ArrayList<Int> = arrayListOf<Int>(),

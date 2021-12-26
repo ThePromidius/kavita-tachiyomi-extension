@@ -45,7 +45,6 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import okio.Buffer
 import org.json.JSONObject
 import rx.Observable
 import rx.Single
@@ -63,21 +62,18 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     override val baseUrl by lazy { getPrefBaseUrl() } // Base URL is the API address of the Kavita Server. Should end with /api
     private val address by lazy { getPrefAddress() } // Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
     private var jwtToken = "" // * JWT Token for authentication with the server. Stored in memory.
-    private val apiKey by lazy { getPrefapiKey() } // API Key of the USer. This is parsed from Address
     private val LOG_TAG = "extension.all.kavita${if (suffix.isNotBlank()) ".$suffix" else ""}"
-    private var isLoged =
-        false // Used to know if login was correct and not send login requests anymore
+    private var isLoged = false // Used to know if login was correct and not send login requests anymore
 
     private val json: Json by injectLazy()
     private val helper = KavitaHelper()
     private inline fun <reified T> Response.parseAs(): T =
         use { json.decodeFromString(it.body?.string().orEmpty()) }
 
-    inline fun <reified T : kotlin.Enum<T>> safeValueOf(type: String): T {
+    private inline fun <reified T : Enum<T>> safeValueOf(type: String): T {
         return java.lang.Enum.valueOf(T::class.java, type)
     }
 
-    private var libraries = emptyList<MetadataLibrary>()
     private var series = emptyList<SeriesDto>() // Acts as a cache
 
     override fun popularMangaRequest(page: Int): Request {
@@ -117,8 +113,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     /**
      * SEARCH MANGA
      * **/
-    var isFilterOn = false // If any filter option is enabled this is true
-    var toFilter = MetadataPayload()
+    private var isFilterOn = false // If any filter option is enabled this is true
+    private var toFilter = MetadataPayload()
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         toFilter = MetadataPayload() // need to reset it or will double
         filters.forEach { filter ->
@@ -157,9 +153,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 }
                 is FormatsFilterGroup -> {
                     filter.state.forEach { content ->
-                        // TODO("redo using new MangaFormat companion obj. ")
                         if (content.state) {
-                            toFilter.formats.add(content.name)
+                            toFilter.formats.add(MangaFormat.valueOf(content.name).ordinal)
                             isFilterOn = true
                         }
                     }
@@ -292,7 +287,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override fun searchMangaParse(response: Response): MangasPage {
         if (isFilterOn) {
-            isFilterOn = false
+            //isFilterOn = false
             return popularMangaParse(response)
         } else {
             if (response.request.url.toString().contains("api/series/all"))
@@ -327,10 +322,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
         if (existingSeries != null) {
             val manga = helper.createSeriesDto(existingSeries, baseUrl)
-            manga.artist = result.artists.joinToString { "${it.name}" }
+            manga.artist = result.artists.joinToString { it.name }
             manga.description = result.summary
-            manga.author = result.writers.joinToString { "${it.name}" }
-            manga.genre = result.genres.joinToString { "${it.title}" }
+            manga.author = result.writers.joinToString { it.name }
+            manga.genre = result.genres.joinToString { it.title }
 
             return manga
         }
@@ -385,11 +380,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             } else {
                 name = "Unhandled Else Volume ${volume.number}"
             }
-
             url = obj.id.toString()
             date_upload = helper.parseDate(obj.created)
             chapter_number = obj.number.toFloat()
-            scanlator = obj.pages.toString()
+            scanlator = "${obj.pages} pages"
         }
     override fun chapterListParse(response: Response): List<SChapter> {
         try {
@@ -413,7 +407,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             allChapterList.reverse()
             return allChapterList
         } catch (e: Exception) {
-            Log.e(LOG_TAG, "Unhandled exception parsing chapters. Send logs to kavita devs")
+            Log.e(LOG_TAG, "Unhandled exception parsing chapters. Send logs to kavita devs", e)
             throw IOException("Unhandled exception parsing chapters. Send logs to kavita devs")
         }
     }
@@ -422,7 +416,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
      * Fetches the "url" of each page from the chapter
      * **/
     override fun pageListRequest(chapter: SChapter): Request {
-
         return GET("${chapter.url}/Reader/chapter-info")
     }
 
@@ -448,18 +441,18 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     override fun imageUrlParse(response: Response): String = ""
 
     /**
-     *          FILTERING
-     * **/
+     * FILTERING
+     **/
 
     /** Some variable names already exist. im not good at naming add Meta suffix */
-    var genresListMeta = emptyList<MetadataGenres>()
-    var tagsListMeta = emptyList<MetadataTags>()
-    var ageRatingsListMeta = emptyList<MetadataAgeRatings>()
-    var peopleListMeta = emptyList<MetadataPeople>()
-    var languagesListMeta = emptyList<MetadataLanguages>()
-    var libraryListMeta = emptyList<MetadataLibrary>()
-    var collectionsListMeta = emptyList<MetadataCollections>()
-    val personRoles = listOf<String>(
+    private var genresListMeta = emptyList<MetadataGenres>()
+    private var tagsListMeta = emptyList<MetadataTags>()
+    private var ageRatingsListMeta = emptyList<MetadataAgeRatings>()
+    private var peopleListMeta = emptyList<MetadataPeople>()
+    private var languagesListMeta = emptyList<MetadataLanguages>()
+    private var libraryListMeta = emptyList<MetadataLibrary>()
+    private var collectionsListMeta = emptyList<MetadataCollections>()
+    private val personRoles = listOf(
         "Other",
         "Writer",
         "Penciller",
@@ -553,9 +546,9 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val filters = try {
             val peopleInRoles = mutableListOf<List<MetadataPeople>>()
             personRoles.map { role ->
-                var peoplesWithRole = mutableListOf<MetadataPeople>()
+                val peoplesWithRole = mutableListOf<MetadataPeople>()
                 peopleListMeta.map {
-                    if (it.role == safeValueOf<PersonRole>(role)!!.role) {
+                    if (it.role == safeValueOf<PersonRole>(role).role) {
                         peoplesWithRole.add(it)
                     }
                 }
@@ -568,7 +561,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
                 FormatsFilterGroup(
                     listOf(
-                        "Manga",
+                        "Image",
                         "Archive",
                         "Unknown",
                         "Epub",
@@ -579,30 +572,34 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) }),
                 LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) }),
                 // People Metadata:
-                OtherPeopleFilterGroup(peopleInRoles.get(0).map { OtherPeopleFilter(it.name) }),
-                WriterPeopleFilterGroup(peopleInRoles.get(1).map { WriterPeopleFilter(it.name) }),
+                OtherPeopleFilterGroup(
+                    peopleInRoles[0].map { OtherPeopleFilter(it.name) }),
+                WriterPeopleFilterGroup(
+                    peopleInRoles[1].map { WriterPeopleFilter(it.name) }),
                 PencillerPeopleFilterGroup(
-                    peopleInRoles.get(2).map { PencillerPeopleFilter(it.name) }
+                    peopleInRoles[2].map { PencillerPeopleFilter(it.name) }
                 ),
-                InkerPeopleFilterGroup(peopleInRoles.get(3).map { InkerPeopleFilter(it.name) }),
+                InkerPeopleFilterGroup(
+                    peopleInRoles[3].map { InkerPeopleFilter(it.name) }),
                 ColoristPeopleFilterGroup(
-                    peopleInRoles.get(4).map { ColoristPeopleFilter(it.name) }
+                    peopleInRoles[4].map { ColoristPeopleFilter(it.name) }
                 ),
                 LettererPeopleFilterGroup(
-                    peopleInRoles.get(5).map { LettererPeopleFilter(it.name) }
+                    peopleInRoles[5].map { LettererPeopleFilter(it.name) }
                 ),
                 CoverArtistPeopleFilterGroup(
-                    peopleInRoles.get(6).map { CoverArtistPeopleFilter(it.name) }
+                    peopleInRoles[6].map { CoverArtistPeopleFilter(it.name) }
                 ),
-                EditorPeopleFilterGroup(peopleInRoles.get(7).map { EditorPeopleFilter(it.name) }),
+                EditorPeopleFilterGroup(
+                    peopleInRoles[7].map { EditorPeopleFilter(it.name) }),
                 PublisherPeopleFilterGroup(
-                    peopleInRoles.get(8).map { PublisherPeopleFilter(it.name) }
+                    peopleInRoles[8].map { PublisherPeopleFilter(it.name) }
                 ),
                 CharacterPeopleFilterGroup(
-                    peopleInRoles.get(9).map { CharacterPeopleFilter(it.name) }
+                    peopleInRoles[9].map { CharacterPeopleFilter(it.name) }
                 ),
                 TranslatorPeopleFilterGroup(
-                    peopleInRoles.get(10).map { TranslatorPeopleFilter(it.name) }
+                    peopleInRoles[10].map { TranslatorPeopleFilter(it.name) }
                 ),
             )
         } catch (e: Exception) {
@@ -634,11 +631,14 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             filter = MetadataPayload()
         }
 
-        val formats = buildJsonArray {
-            // TODO: Add formats here. the rest is done. filter.formats can be used. List<String> Ref: Line465 in getFilterList
-            add(MangaFormat.Archive.ordinal)
-            add(MangaFormat.Image.ordinal)
-            add(MangaFormat.Pdf.ordinal)
+        val formats = if (filter.formats.isNotEmpty()) {
+            buildJsonArray {
+                add(MangaFormat.Archive.ordinal)
+                add(MangaFormat.Image.ordinal)
+                add(MangaFormat.Pdf.ordinal)
+            }
+        } else {
+            buildJsonArray { filter.formats.map { add(it) } }
         }
 
         val payload = buildJsonObject {
@@ -647,7 +647,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             put(
                 "readStatus",
                 buildJsonObject {
-                    if (filter.readStatus.isNotEmpty() and isFilterOn) {
+                    if (filter.readStatus.isNotEmpty()) {
                         filter.readStatus.forEach { status ->
                             if (status in listOf("notRead", "inProgress", "read")) {
                                 put(status, JsonPrimitive(true))
@@ -681,20 +681,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             // put("sortOptions", JSONObject.NULL)
         }
         return payload.toString().toRequestBody(JSON_MEDIA_TYPE)
-    }
-
-    /**
-     * Debug method to pring a Request body
-     */
-    private fun bodyToString(request: Request): String? {
-        return try {
-            val copy = request.newBuilder().build()
-            val buffer = Buffer()
-            copy.body!!.writeTo(buffer)
-            buffer.readUtf8()
-        } catch (e: IOException) {
-            "did not work"
-        }
     }
 
     private val preferences: SharedPreferences by lazy {
@@ -748,7 +734,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         }
     }
 
-    private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
+    //private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
     private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
 
     // We strip the last slash since we will append it above
@@ -765,15 +751,18 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
     }
 
-     /**
+    /**
      * LOGIN
      **/
     private fun setupLogin() {
         val tokens = address.split("/opds/")
         val apiKey = tokens[1]
-        val baseUrl = tokens[0]
+        val baseUrlSetup = tokens[0].replace("\n", "\\n")
+        if (!baseUrlSetup.startsWith("http")) {
+            throw Exception("""Url does not start with "http/s" but with ${baseUrlSetup.split("://")[0]} """)
+        }
         preferences.edit().putString("APIKEY", apiKey).commit()
-        preferences.edit().putString("BASEURL", baseUrl).commit()
+        preferences.edit().putString("BASEURL", baseUrlSetup).commit()
 
         val body = JSONObject().toString()
             .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
@@ -800,7 +789,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     }
 
     private fun doLogin() {
-        if (address.isNullOrEmpty()) {
+        if (address.isEmpty()) {
             Log.e(LOG_TAG, "OPDS URL is empty or null")
             throw IOException("You must setup the Address to communicate with Kavita")
         }
@@ -823,7 +812,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             Single.fromCallable {
 
                 // Login
-                var loginSuccesful: Boolean = false
+                var loginSuccesful = false
                 try {
                     doLogin()
                     loginSuccesful = true

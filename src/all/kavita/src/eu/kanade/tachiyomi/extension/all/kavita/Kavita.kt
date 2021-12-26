@@ -768,8 +768,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         preferences.edit().putString("APIKEY", apiKey).commit()
         preferences.edit().putString("BASEURL", baseUrlSetup).commit()
 
-        val body = JSONObject().toString()
-            .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+        val body = "{}".toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         fun setupLoginHeaders(): Headers.Builder {
             return Headers.Builder()
                 .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")

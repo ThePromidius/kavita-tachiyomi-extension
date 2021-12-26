@@ -3,10 +3,11 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlinx-serialization'
 
 ext {
-    extName = 'Mangahasu'
-    pkgNameSuffix = 'en.mangahasu'
-    extClass = '.Mangahasu'
-    extVersionCode = 15
+    extName = 'Comico'
+    pkgNameSuffix = 'all.comico'
+    extClass = '.ComicoFactory'
+    extVersionCode = 1
+    isNsfw = true
 }
 
 apply from: "$rootDir/common.gradle"

@@ -1,13 +1,12 @@
-
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
+apply plugin: 'kotlinx-serialization'
 
 ext {
-    extName = 'Jinmantiantang'
-    pkgNameSuffix = 'zh.jinmantiantang'
-    extClass = '.Jinmantiantang'
-    extVersionCode = 19
-    isNsfw = true
+    extName = 'War For Rayuba'
+    pkgNameSuffix = 'en.warforrayuba'
+    extClass = '.WarForRayuba'
+    extVersionCode = 1
 }
 
 dependencies {

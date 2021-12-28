@@ -24,6 +24,7 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesMetadataDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.VolumeDto
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
+import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -58,7 +59,9 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     override val name = "Kavita"
     override val lang = "all"
     override val supportsLatest = true
-    override val baseUrl by lazy { getPrefBaseUrl() } // Base URL is the API address of the Kavita Server. Should end with /api
+    // val apiUrl by lazy { getPrefApiUrl() } // Base URL is the API address of the Kavita Server. Should end with /api
+    val apiUrl by lazy { getPrefApiUrl() }
+    override val baseUrl by lazy { getPrefBaseUrl() }
     private val address by lazy { getPrefAddress() } // Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
     private var jwtToken = "" // * JWT Token for authentication with the server. Stored in memory.
     private val LOG_TAG = "extension.all.kavita${if (suffix.isNotBlank()) ".$suffix" else ""}"
@@ -81,7 +84,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         }
 
         return POST(
-            "$baseUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
+            "$apiUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
             buildFilterBody()
         )
@@ -90,13 +93,13 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     override fun popularMangaParse(response: Response): MangasPage {
         val result = response.parseAs<List<SeriesDto>>()
         series = result
-        val mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }
+        val mangaList = result.map { item -> helper.createSeriesDto(item, apiUrl) }
         return MangasPage(mangaList, helper.hasNextPage(response))
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
         return POST(
-            "$baseUrl/series/recently-added?pageNumber=$page&libraryId=0&pageSize=20",
+            "$apiUrl/series/recently-added?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
             buildFilterBody()
         )
@@ -105,7 +108,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     override fun latestUpdatesParse(response: Response): MangasPage {
         val result = response.parseAs<List<SeriesDto>>()
         series = result
-        val mangaList = result.map { item -> helper.createSeriesDto(item, baseUrl) }
+        val mangaList = result.map { item -> helper.createSeriesDto(item, apiUrl) }
         return MangasPage(mangaList, helper.hasNextPage(response))
     }
 
@@ -280,7 +283,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         if (isFilterOn || query.isEmpty()) {
             return popularMangaRequest(page)
         } else {
-            return GET("$baseUrl/Library/search?queryString=$query", headers)
+            return GET("$apiUrl/Library/search?queryString=$query", headers)
         }
     }
 
@@ -300,7 +303,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     private fun searchMangaFromObject(obj: KavitaComicsSearch): SManga = SManga.create().apply {
         title = obj.name
-        thumbnail_url = "$baseUrl/Image/series-cover?seriesId=${obj.seriesId}"
+        thumbnail_url = "$apiUrl/Image/series-cover?seriesId=${obj.seriesId}"
         description = "None"
         url = "${obj.seriesId}"
     }
@@ -308,9 +311,21 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     /**
      * MANGA DETAILS (metadata about series)
      * **/
+
+    override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
+        val serieId = helper.getIdFromUrl(manga.url)
+        return client.newCall(GET("$apiUrl/series/metadata?seriesId=$serieId", headersBuilder().build()))
+            .asObservableSuccess()
+            .map { response ->
+                mangaDetailsParse(response).apply { initialized = true }
+            }
+    }
+
     override fun mangaDetailsRequest(manga: SManga): Request {
+        val serieId = helper.getIdFromUrl(manga.url)
+        val foundSerie = series.find { dto -> dto.id == serieId }
         return GET(
-            "$baseUrl/series/metadata?seriesId=${helper.getIdFromUrl(manga.url)}",
+            "$baseUrl/library/${foundSerie!!.libraryId}/series/$serieId",
             headersBuilder().build()
         )
     }
@@ -320,7 +335,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val existingSeries = series.find { dto -> dto.id == result.seriesId }
 
         if (existingSeries != null) {
-            val manga = helper.createSeriesDto(existingSeries, baseUrl)
+            val manga = helper.createSeriesDto(existingSeries, apiUrl)
             manga.artist = result.artists.joinToString { it.name }
             manga.description = result.summary
             manga.author = result.writers.joinToString { it.name }
@@ -330,11 +345,11 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         }
 
         return SManga.create().apply {
-            url = "$baseUrl/Series/${result.seriesId}"
+            url = "$apiUrl/Series/${result.seriesId}"
             artist = result.artists.joinToString { ", " }
             author = result.writers.joinToString { ", " }
             genre = result.genres.joinToString { ", " }
-            thumbnail_url = "$baseUrl/image/series-cover?seriesId=${result.seriesId}"
+            thumbnail_url = "$apiUrl/image/series-cover?seriesId=${result.seriesId}"
         }
     }
 
@@ -342,7 +357,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
      * CHAPTER LIST
      * **/
     override fun chapterListRequest(manga: SManga): Request {
-        val url = "$baseUrl/Series/volumes?seriesId=${helper.getIdFromUrl(manga.url)}"
+        val url = "$apiUrl/Series/volumes?seriesId=${helper.getIdFromUrl(manga.url)}"
         return GET(url, headersBuilder().build())
     }
 
@@ -427,7 +442,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             pages.add(
                 Page(
                     index = i,
-                    imageUrl = "$baseUrl/Reader/image?chapterId=$chapterId&page=$i"
+                    imageUrl = "$apiUrl/Reader/image?chapterId=$chapterId&page=$i"
                 )
             )
         }
@@ -739,6 +754,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     // private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
     private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
+    private fun getPrefApiUrl(): String = preferences.getString("APIURL", "")!!
 
     // We strip the last slash since we will append it above
     private fun getPrefAddress(): String {
@@ -758,14 +774,16 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
      * LOGIN
      **/
     private fun setupLogin() {
-        val tokens = address.split("/opds/")
+        val tokens = address.split("/api/opds/")
         val apiKey = tokens[1]
         val baseUrlSetup = tokens[0].replace("\n", "\\n")
+
         if (!baseUrlSetup.startsWith("http")) {
             throw Exception("""Url does not start with "http/s" but with ${baseUrlSetup.split("://")[0]} """)
         }
-        preferences.edit().putString("APIKEY", apiKey).commit()
         preferences.edit().putString("BASEURL", baseUrlSetup).commit()
+        preferences.edit().putString("APIKEY", apiKey).commit()
+        preferences.edit().putString("APIURL", "$baseUrlSetup/api").commit()
 
         val body = "{}".toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         fun setupLoginHeaders(): Headers.Builder {
@@ -775,7 +793,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 .add("Authorization", "Bearer $jwtToken")
         }
         val request = POST(
-            "$baseUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${
+            "$apiUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${
             URLEncoder.encode("Tachiyomi-Kavita","utf-8")}",
             setupLoginHeaders().build(), body
         )
@@ -810,7 +828,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     }*/
 
     init {
-        if (baseUrl.isNotBlank()) {
+        if (apiUrl.isNotBlank()) {
             Single.fromCallable {
 
                 // Login
@@ -826,7 +844,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 if (loginSuccesful) { // doing this check to not clutter LOGS
                     // Genres
                     try {
-                        client.newCall(GET("$baseUrl/Metadata/genres", headersBuilder().build()))
+                        client.newCall(GET("$apiUrl/Metadata/genres", headersBuilder().build()))
                             .execute().use { response ->
                                 genresListMeta = try {
                                     val responseBody = response.body
@@ -849,7 +867,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     }
                     // tagsListMeta
                     try {
-                        client.newCall(GET("$baseUrl/Metadata/tags", headersBuilder().build()))
+                        client.newCall(GET("$apiUrl/Metadata/tags", headersBuilder().build()))
                             .execute().use { response ->
                                 tagsListMeta = try {
                                     val responseBody = response.body
@@ -874,7 +892,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     try {
                         client.newCall(
                             GET(
-                                "$baseUrl/Metadata/age-ratings",
+                                "$apiUrl/Metadata/age-ratings",
                                 headersBuilder().build()
                             )
                         ).execute().use { response ->
@@ -903,7 +921,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     }
                     // collectionsListMeta
                     try {
-                        client.newCall(GET("$baseUrl/Collection", headersBuilder().build()))
+                        client.newCall(GET("$apiUrl/Collection", headersBuilder().build()))
                             .execute().use { response ->
                                 collectionsListMeta = try {
                                     val responseBody = response.body
@@ -934,7 +952,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     }
                     // languagesListMeta
                     try {
-                        client.newCall(GET("$baseUrl/Metadata/languages", headersBuilder().build()))
+                        client.newCall(GET("$apiUrl/Metadata/languages", headersBuilder().build()))
                             .execute().use { response ->
                                 languagesListMeta = try {
                                     val responseBody = response.body
@@ -965,7 +983,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     }
                     // libraries
                     try {
-                        client.newCall(GET("$baseUrl/Library", headersBuilder().build())).execute()
+                        client.newCall(GET("$apiUrl/Library", headersBuilder().build())).execute()
                             .use { response ->
                                 libraryListMeta = try {
                                     val responseBody = response.body
@@ -992,7 +1010,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     }
                     // peopleListMeta
                     try {
-                        client.newCall(GET("$baseUrl/Metadata/people", headersBuilder().build()))
+                        client.newCall(GET("$apiUrl/Metadata/people", headersBuilder().build()))
                             .execute().use { response ->
                                 peopleListMeta = try {
                                     val responseBody = response.body

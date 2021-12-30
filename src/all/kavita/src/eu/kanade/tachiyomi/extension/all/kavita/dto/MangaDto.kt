@@ -56,9 +56,9 @@ data class SeriesDto(
 data class SeriesMetadataDto(
     val id: Int,
     val summary: String,
-    val writers: List<Person>,
-    val artists: List<Person>,
-    val genres: List<Genres>,
+    val writers: List<Person> = emptyList(),
+    val artists: List<Person> = emptyList(),
+    val genres: List<Genres> = emptyList(),
     val seriesId: Int,
     val ageRating: Int
 

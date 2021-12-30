@@ -70,7 +70,14 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     private val json: Json by injectLazy()
     private val helper = KavitaHelper()
     private inline fun <reified T> Response.parseAs(): T =
-        use { json.decodeFromString(it.body?.string().orEmpty()) }
+        use {
+            try {
+                json.decodeFromString(it.body?.string().orEmpty())
+            } catch (e:Exception) {
+                Log.e(LOG_TAG,"[mangaDetailsParse] Error deserializing response. Response body: ```$```",e)
+                json.decodeFromString(it.body?.string().orEmpty())
+            }
+        }
 
     private inline fun <reified T : Enum<T>> safeValueOf(type: String): T {
         return java.lang.Enum.valueOf(T::class.java, type)
@@ -331,8 +338,15 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val result = response.parseAs<SeriesMetadataDto>()
+
+        val result = try {
+            response.parseAs<SeriesMetadataDto>()
+        } catch(e:Exception){
+            Log.e(LOG_TAG,"[mangaDetailsParse] Error deserializing response. Response body: ```$```",e)
+
+        }
         val existingSeries = series.find { dto -> dto.id == result.seriesId }
+
 
         if (existingSeries != null) {
             val manga = helper.createSeriesDto(existingSeries, apiUrl)
@@ -397,7 +411,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             url = obj.id.toString()
             date_upload = helper.parseDate(obj.created)
             chapter_number = obj.number.toFloat()
-            scanlator = "${obj.pages} pages"
+            scanlator = "${obj.pages}"
         }
     override fun chapterListParse(response: Response): List<SChapter> {
         try {

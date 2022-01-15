@@ -49,6 +49,8 @@ data class MetadataCollections(
 )
 
 data class MetadataPayload(
+    var sorting: Int = 1,
+    var sorting_asc: Boolean = true,
     var readStatus: ArrayList<String> = arrayListOf< String>(),
     var genres: ArrayList<Int> = arrayListOf<Int>(),
     var tags: ArrayList<Int> = arrayListOf<Int>(),

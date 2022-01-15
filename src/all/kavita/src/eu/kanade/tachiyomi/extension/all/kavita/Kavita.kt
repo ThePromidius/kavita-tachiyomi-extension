@@ -123,6 +123,14 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         toFilter = MetadataPayload() // need to reset it or will double
         filters.forEach { filter ->
             when (filter) {
+
+                is SortFilter -> {
+                    if (filter.state != null) {
+                        toFilter.sorting = filter.state!!.index + 1
+                        toFilter.sorting_asc = filter.state!!.ascending
+                        isFilterOn = true
+                    }
+                }
                 is StatusFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
@@ -495,6 +503,14 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         "Translator"
     )
 
+    private class SortFilter(sortables: Array<String>) : Filter.Sort("Sort by", sortables, Selection(0, true))
+    private class SortFilter_ascending(sortables: Array<String>) : Filter.Sort("Sort by", sortables, Selection(0, true))
+
+    val sortableList = listOf(
+        Pair("Sort name", 1),
+        Pair("Created", 2),
+        Pair("Last modified", 3),
+    )
     private class StatusFilter(name: String) : Filter.CheckBox(name, false)
     private class StatusFilterGroup(filters: List<StatusFilter>) :
         Filter.Group<StatusFilter>("Status", filters)
@@ -588,6 +604,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 peopleInRoles.add(peoplesWithRole)
             }
             mutableListOf<Filter<*>>(
+                SortFilter(sortableList.map { it.first }.toTypedArray()),
                 StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
                 GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
                 TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
@@ -717,7 +734,12 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             put("tags", buildJsonArray { filter.tags.map { add(it) } })
             put("rating", 0)
             put("ageRating", buildJsonArray { filter.ageRating.map { add(it) } })
-            // put("sortOptions", JSONObject.NULL)
+            put("sortOptions",
+                buildJsonObject {
+                    put("sortField", filter.sorting)
+                    put("isAscending", JsonPrimitive(filter.sorting_asc))
+                }
+            )
         }
         return payload.toString().toRequestBody(JSON_MEDIA_TYPE)
     }

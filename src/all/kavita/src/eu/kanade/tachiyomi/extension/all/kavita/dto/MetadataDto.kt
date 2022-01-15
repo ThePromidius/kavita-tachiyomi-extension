@@ -16,6 +16,11 @@ data class MetadataPeople(
     val role: Int
 )
 @Serializable
+data class MetadataPubStatus(
+    val value: Int,
+    val title: String
+)
+@Serializable
 data class MetadataTags(
     val id: Int,
     val name: String,
@@ -54,6 +59,7 @@ data class MetadataPayload(
     var people: ArrayList<Int> = arrayListOf<Int>(),
     var language: ArrayList<String> = arrayListOf<String>(),
     var libraries: ArrayList<Int> = arrayListOf<Int>(),
+    var pubStatus: ArrayList<Int> = arrayListOf<Int>(),
 
     var peopleOther: ArrayList<Int> = arrayListOf<Int>(),
     var peopleWriters: ArrayList<Int> = arrayListOf<Int>(),
@@ -66,4 +72,5 @@ data class MetadataPayload(
     var peoplePublisher: ArrayList<Int> = arrayListOf<Int>(),
     var peopleCharacter: ArrayList<Int> = arrayListOf<Int>(),
     var peopleTranslator: ArrayList<Int> = arrayListOf<Int>(),
+
 )

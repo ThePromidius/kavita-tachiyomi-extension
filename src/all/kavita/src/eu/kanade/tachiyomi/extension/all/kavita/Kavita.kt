@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataLanguages
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataLibrary
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPayload
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPeople
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPubStatus
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataTags
 import eu.kanade.tachiyomi.extension.all.kavita.dto.PersonRole
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesDto
@@ -71,14 +72,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     private val helper = KavitaHelper()
     private inline fun <reified T> Response.parseAs(): T =
         use {
-            try {
-                json.decodeFromString(it.body?.string().orEmpty())
-            } catch (e:Exception) {
-                Log.e(LOG_TAG,"[mangaDetailsParse] Error deserializing response. Response body: ```$```",e)
-                json.decodeFromString(it.body?.string().orEmpty())
-            }
+            json.decodeFromString(it.body?.string().orEmpty())
         }
-
     private inline fun <reified T : Enum<T>> safeValueOf(type: String): T {
         return java.lang.Enum.valueOf(T::class.java, type)
     }
@@ -189,6 +184,15 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     filter.state.forEach { content ->
                         if (content.state) {
                             toFilter.libraries.add(libraryListMeta.find { it.name == content.name }!!.id)
+                            isFilterOn = true
+                        }
+                    }
+                }
+
+                is PubStatusFilterGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state) {
+                            toFilter.pubStatus.add(pubStatusListMeta.find { it.title == content.name }!!.value)
                             isFilterOn = true
                         }
                     }
@@ -324,6 +328,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         return client.newCall(GET("$apiUrl/series/metadata?seriesId=$serieId", headersBuilder().build()))
             .asObservableSuccess()
             .map { response ->
+                Log.v(LOG_TAG, "fetchMangaDetails response body: ```${response.peekBody(Long.MAX_VALUE).string()}```")
                 mangaDetailsParse(response).apply { initialized = true }
             }
     }
@@ -339,14 +344,9 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override fun mangaDetailsParse(response: Response): SManga {
 
-        val result = try {
-            response.parseAs<SeriesMetadataDto>()
-        } catch(e:Exception){
-            Log.e(LOG_TAG,"[mangaDetailsParse] Error deserializing response. Response body: ```$```",e)
+        val result = response.parseAs<SeriesMetadataDto>()
 
-        }
         val existingSeries = series.find { dto -> dto.id == result.seriesId }
-
 
         if (existingSeries != null) {
             val manga = helper.createSeriesDto(existingSeries, apiUrl)
@@ -477,6 +477,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     private var tagsListMeta = emptyList<MetadataTags>()
     private var ageRatingsListMeta = emptyList<MetadataAgeRatings>()
     private var peopleListMeta = emptyList<MetadataPeople>()
+    private var pubStatusListMeta = emptyList<MetadataPubStatus>()
     private var languagesListMeta = emptyList<MetadataLanguages>()
     private var libraryListMeta = emptyList<MetadataLibrary>()
     private var collectionsListMeta = emptyList<MetadataCollections>()
@@ -524,6 +525,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     private class LibraryFilter(library: String) : Filter.CheckBox(library, false)
     private class LibrariesFilterGroup(libraries: List<LibraryFilter>) :
         Filter.Group<LibraryFilter>("Libraries", libraries)
+
+    private class PubStatusFilter(name: String) : Filter.CheckBox(name, false)
+    private class PubStatusFilterGroup(status: List<PubStatusFilter>) :
+        Filter.Group<PubStatusFilter>("Publication Status", status)
 
     private class OtherPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class OtherPeopleFilterGroup(peoples: List<OtherPeopleFilter>) :
@@ -599,6 +604,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 CollectionFilterGroup(collectionsListMeta.map { CollectionFilter(it.title) }),
                 LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) }),
                 LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) }),
+                PubStatusFilterGroup(pubStatusListMeta.map { PubStatusFilter(it.title) }),
                 // People Metadata:
                 OtherPeopleFilterGroup(
                     peopleInRoles[0].map { OtherPeopleFilter(it.name) }
@@ -707,6 +713,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             put("translators", buildJsonArray { filter.peopleTranslator.map { add(it) } })
             put("collectionTags", buildJsonArray { filter.collections.map { add(it) } })
             put("languages", buildJsonArray { filter.language.map { add(it) } })
+            put("publicationStatus", buildJsonArray { filter.pubStatus.map { add(it) } })
             put("tags", buildJsonArray { filter.tags.map { add(it) } })
             put("rating", 0)
             put("ageRating", buildJsonArray { filter.ageRating.map { add(it) } })
@@ -872,7 +879,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                         emptyList()
                                     }
                                 } catch (e: Exception) {
-                                    Log.e(LOG_TAG, "error while decoding JSON for genres filter", e)
+                                    Log.e(LOG_TAG, "error while decoding JSON for genres filter -> ${response.body!!}", e)
                                     emptyList()
                                 }
                             }
@@ -1049,6 +1056,33 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     } catch (e: Exception) {
                         Log.e(LOG_TAG, "error while loading tagsList for peopleListMeta", e)
                     }
+                    try {
+                        client.newCall(GET("$apiUrl/Metadata/publication-status", headersBuilder().build()))
+                            .execute().use { response ->
+                                pubStatusListMeta = try {
+                                    val responseBody = response.body
+                                    if (responseBody != null) {
+                                        responseBody.use { json.decodeFromString(it.string()) }
+                                    } else {
+                                        Log.e(
+                                            LOG_TAG,
+                                            "error while decoding JSON for publicationStatusListMeta filter: response body is null. Response code: ${response.code}"
+                                        )
+                                        emptyList()
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(
+                                        LOG_TAG,
+                                        "error while decoding JSON for publicationStatusListMeta filter",
+                                        e
+                                    )
+                                    emptyList()
+                                }
+                            }
+                    } catch (e: Exception) {
+                        Log.e(LOG_TAG, "error while loading tagsList for peopleListMeta", e)
+                    }
+
                     Log.v(LOG_TAG, "Successfully loaded metadata tags from server")
                 }
                 Log.v(LOG_TAG, "Successfully ended init")

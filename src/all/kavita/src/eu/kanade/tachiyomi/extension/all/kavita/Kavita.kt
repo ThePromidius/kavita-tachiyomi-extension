@@ -358,7 +358,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
         if (existingSeries != null) {
             val manga = helper.createSeriesDto(existingSeries, apiUrl)
-            manga.artist = result.artists.joinToString { it.name }
+            manga.artist = result.coverArtists.joinToString { it.name }
             manga.description = result.summary
             manga.author = result.writers.joinToString { it.name }
             manga.genre = result.genres.joinToString { it.title }
@@ -368,7 +368,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
         return SManga.create().apply {
             url = "$apiUrl/Series/${result.seriesId}"
-            artist = result.artists.joinToString { ", " }
+            artist = result.coverArtists.joinToString { ", " }
             author = result.writers.joinToString { ", " }
             genre = result.genres.joinToString { ", " }
             thumbnail_url = "$apiUrl/image/series-cover?seriesId=${result.seriesId}"
@@ -734,7 +734,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             put("tags", buildJsonArray { filter.tags.map { add(it) } })
             put("rating", 0)
             put("ageRating", buildJsonArray { filter.ageRating.map { add(it) } })
-            put("sortOptions",
+            put(
+                "sortOptions",
                 buildJsonObject {
                     put("sortField", filter.sorting)
                     put("isAscending", JsonPrimitive(filter.sorting_asc))

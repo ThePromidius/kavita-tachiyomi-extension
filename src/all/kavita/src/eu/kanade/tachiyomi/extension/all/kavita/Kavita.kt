@@ -121,6 +121,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     private var toFilter = MetadataPayload()
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         toFilter = MetadataPayload() // need to reset it or will double
+        isFilterOn = false
         filters.forEach { filter ->
             when (filter) {
 
@@ -183,7 +184,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                         }
                     }
                 }
-                // TODO("Add rating filter. Not nullable. Ask if default 0 would work")
+
                 is LanguageFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
@@ -290,8 +291,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                         }
                     }
                 }
-
-                else -> isFilterOn = false
             }
         }
 
@@ -532,7 +531,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     private class AgeRatingFilter(name: String) : Filter.CheckBox(name, false)
     private class AgeRatingFilterGroup(ageRatings: List<AgeRatingFilter>) :
-        Filter.Group<AgeRatingFilter>("Age-Rating", ageRatings)
+        Filter.Group<AgeRatingFilter>("Age Rating", ageRatings)
 
     private class FormatFilter(name: String) : Filter.CheckBox(name, false)
     private class FormatsFilterGroup(formats: List<FormatFilter>) :
@@ -556,7 +555,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     private class PeopleHeaderFilter(name: String) :
         Filter.Header(name)
-    private class PeopleSeparatorFilter(name: String) :
+    private class PeopleSeparatorFilter() :
         Filter.Separator()
 
     private class WriterPeopleFilter(name: String) : Filter.CheckBox(name, false)
@@ -581,7 +580,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     private class CoverArtistPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class CoverArtistPeopleFilterGroup(peoples: List<CoverArtistPeopleFilter>) :
-        Filter.Group<CoverArtistPeopleFilter>("CoverArtist", peoples)
+        Filter.Group<CoverArtistPeopleFilter>("Cover Artist", peoples)
 
     private class EditorPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class EditorPeopleFilterGroup(peoples: List<EditorPeopleFilter>) :
@@ -633,11 +632,14 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 PubStatusFilterGroup(pubStatusListMeta.map { PubStatusFilter(it.title) }),
                 UserRating(),
                 // People Metadata:
-                PeopleHeaderFilter("This is header"),
+
+                PeopleHeaderFilter(""),
+                PeopleSeparatorFilter(),
+                PeopleHeaderFilter("PEOPLE"),
                 WriterPeopleFilterGroup(
                     peopleInRoles[0].map { WriterPeopleFilter(it.name) }
                 ),
-                PeopleSeparatorFilter("This is separator"),
+
                 PencillerPeopleFilterGroup(
                     peopleInRoles[1].map { PencillerPeopleFilter(it.name) }
                 ),

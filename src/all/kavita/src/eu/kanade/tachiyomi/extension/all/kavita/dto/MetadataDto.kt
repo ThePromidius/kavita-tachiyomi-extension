@@ -63,7 +63,6 @@ data class MetadataPayload(
     var libraries: ArrayList<Int> = arrayListOf<Int>(),
     var pubStatus: ArrayList<Int> = arrayListOf<Int>(),
 
-    var peopleOther: ArrayList<Int> = arrayListOf<Int>(),
     var peopleWriters: ArrayList<Int> = arrayListOf<Int>(),
     var peoplePenciller: ArrayList<Int> = arrayListOf<Int>(),
     var peopleInker: ArrayList<Int> = arrayListOf<Int>(),

@@ -210,14 +210,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     }
                 }
 
-                is OtherPeopleFilterGroup -> {
-                    filter.state.forEach { content ->
-                        if (content.state) {
-                            toFilter.peopleOther.add(peopleListMeta.find { it.name == content.name }!!.id)
-                            isFilterOn = true
-                        }
-                    }
-                }
                 is WriterPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
@@ -494,7 +486,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     private var libraryListMeta = emptyList<MetadataLibrary>()
     private var collectionsListMeta = emptyList<MetadataCollections>()
     private val personRoles = listOf(
-        "Other",
         "Writer",
         "Penciller",
         "Inker",
@@ -563,9 +554,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     private class PubStatusFilterGroup(status: List<PubStatusFilter>) :
         Filter.Group<PubStatusFilter>("Publication Status", status)
 
-    private class OtherPeopleFilter(name: String) : Filter.CheckBox(name, false)
-    private class OtherPeopleFilterGroup(peoples: List<OtherPeopleFilter>) :
-        Filter.Group<OtherPeopleFilter>("Other", peoples)
+    private class PeopleHeaderFilter(name: String) :
+        Filter.Header(name)
+    private class PeopleSeparatorFilter(name: String) :
+        Filter.Separator()
 
     private class WriterPeopleFilter(name: String) : Filter.CheckBox(name, false)
     private class WriterPeopleFilterGroup(peoples: List<WriterPeopleFilter>) :
@@ -641,39 +633,37 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 PubStatusFilterGroup(pubStatusListMeta.map { PubStatusFilter(it.title) }),
                 UserRating(),
                 // People Metadata:
-
-                OtherPeopleFilterGroup(
-                    peopleInRoles[0].map { OtherPeopleFilter(it.name) }
-                ),
+                PeopleHeaderFilter("This is header"),
                 WriterPeopleFilterGroup(
-                    peopleInRoles[1].map { WriterPeopleFilter(it.name) }
+                    peopleInRoles[0].map { WriterPeopleFilter(it.name) }
                 ),
+                PeopleSeparatorFilter("This is separator"),
                 PencillerPeopleFilterGroup(
-                    peopleInRoles[2].map { PencillerPeopleFilter(it.name) }
+                    peopleInRoles[1].map { PencillerPeopleFilter(it.name) }
                 ),
                 InkerPeopleFilterGroup(
-                    peopleInRoles[3].map { InkerPeopleFilter(it.name) }
+                    peopleInRoles[2].map { InkerPeopleFilter(it.name) }
                 ),
                 ColoristPeopleFilterGroup(
-                    peopleInRoles[4].map { ColoristPeopleFilter(it.name) }
+                    peopleInRoles[3].map { ColoristPeopleFilter(it.name) }
                 ),
                 LettererPeopleFilterGroup(
-                    peopleInRoles[5].map { LettererPeopleFilter(it.name) }
+                    peopleInRoles[4].map { LettererPeopleFilter(it.name) }
                 ),
                 CoverArtistPeopleFilterGroup(
-                    peopleInRoles[6].map { CoverArtistPeopleFilter(it.name) }
+                    peopleInRoles[5].map { CoverArtistPeopleFilter(it.name) }
                 ),
                 EditorPeopleFilterGroup(
-                    peopleInRoles[7].map { EditorPeopleFilter(it.name) }
+                    peopleInRoles[6].map { EditorPeopleFilter(it.name) }
                 ),
                 PublisherPeopleFilterGroup(
-                    peopleInRoles[8].map { PublisherPeopleFilter(it.name) }
+                    peopleInRoles[7].map { PublisherPeopleFilter(it.name) }
                 ),
                 CharacterPeopleFilterGroup(
-                    peopleInRoles[9].map { CharacterPeopleFilter(it.name) }
+                    peopleInRoles[8].map { CharacterPeopleFilter(it.name) }
                 ),
                 TranslatorPeopleFilterGroup(
-                    peopleInRoles[10].map { TranslatorPeopleFilter(it.name) }
+                    peopleInRoles[9].map { TranslatorPeopleFilter(it.name) }
                 ),
             )
         } catch (e: Exception) {

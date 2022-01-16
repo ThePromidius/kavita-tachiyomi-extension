@@ -147,6 +147,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                         }
                     }
                 }
+                is UserRating -> {
+                    println(filter.state)
+                    toFilter.userRating = filter.state
+                }
                 is TagFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
@@ -503,6 +507,19 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         "Translator"
     )
 
+    private class UserRating() :
+        Filter.Select<String>(
+            "Minimum Rating",
+            arrayOf(
+                "Any",
+                "1 star",
+                "2 stars",
+                "3 stars",
+                "4 stars",
+                "5 stars"
+            )
+        )
+
     private class SortFilter(sortables: Array<String>) : Filter.Sort("Sort by", sortables, Selection(0, true))
     private class SortFilter_ascending(sortables: Array<String>) : Filter.Sort("Sort by", sortables, Selection(0, true))
 
@@ -622,7 +639,9 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) }),
                 LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) }),
                 PubStatusFilterGroup(pubStatusListMeta.map { PubStatusFilter(it.title) }),
+                UserRating(),
                 // People Metadata:
+
                 OtherPeopleFilterGroup(
                     peopleInRoles[0].map { OtherPeopleFilter(it.name) }
                 ),
@@ -732,7 +751,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             put("languages", buildJsonArray { filter.language.map { add(it) } })
             put("publicationStatus", buildJsonArray { filter.pubStatus.map { add(it) } })
             put("tags", buildJsonArray { filter.tags.map { add(it) } })
-            put("rating", 0)
+            put("rating", filter.userRating)
             put("ageRating", buildJsonArray { filter.ageRating.map { add(it) } })
             put(
                 "sortOptions",

@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.text.InputType
 import android.util.Log
 import android.widget.Toast
+import androidx.preference.MultiSelectListPreference
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.AuthenticationDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.ChapterDto
@@ -599,7 +600,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         Filter.Group<TranslatorPeopleFilter>("Translator", peoples)
 
     override fun getFilterList(): FilterList {
-        // fetchMetadataFiltering()
+        val toggledFilters = preferences.getStringSet(KavitaConstants.toggledFiltersPref, KavitaConstants.defaultFilterPrefEntries)
         val filters = try {
             val peopleInRoles = mutableListOf<List<MetadataPeople>>()
             personRoles.map { role ->
@@ -611,63 +612,82 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 }
                 peopleInRoles.add(peoplesWithRole)
             }
-            var filtersLoaded = mutableListOf<Filter<*>>(
-                SortFilter(sortableList.map { it.first }.toTypedArray()),
-                StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) })
-            )
 
-            if (genresListMeta.isNotEmpty()) {
+            var filtersLoaded = mutableListOf<Filter<*>>()
+
+            if (sortableList.isNotEmpty() and toggledFilters.contains("Sort Options")) {
+                filtersLoaded.add(
+                    SortFilter(sortableList.map { it.first }.toTypedArray())
+                )
+            }
+            if (genresListMeta.isNotEmpty() and toggledFilters.contains("SRead Status")) {
+                filtersLoaded.add(
+                    StatusFilterGroup(
+                        listOf(
+                            "notRead",
+                            "inProgress",
+                            "read"
+                        ).map { StatusFilter(it) }
+                    )
+                )
+            }
+
+            if (genresListMeta.isNotEmpty() and toggledFilters.contains("Genres")) {
                 filtersLoaded.add(
                     GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) })
                 )
             }
-            if (tagsListMeta.isNotEmpty()) {
+            if (tagsListMeta.isNotEmpty() and toggledFilters.contains("Tags")) {
                 filtersLoaded.add(
                     TagFilterGroup(tagsListMeta.map { TagFilter(it.name) })
                 )
             }
-            if (tagsListMeta.isNotEmpty()) {
+            if (ageRatingsListMeta.isNotEmpty() and toggledFilters.contains("Age Rating")) {
                 filtersLoaded.add(
                     AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) })
                 )
             }
-            filtersLoaded.add(
-                FormatsFilterGroup(
-                    listOf(
-                        "Image",
-                        "Archive",
-                        "Unknown",
-                        "Epub",
-                        "Pdf"
-                    ).map { FormatFilter(it) }
+            if (toggledFilters.contains("Format")) {
+                filtersLoaded.add(
+                    FormatsFilterGroup(
+                        listOf(
+                            "Image",
+                            "Archive",
+                            "Unknown",
+                            "Epub",
+                            "Pdf"
+                        ).map { FormatFilter(it) }
+                    )
                 )
-            )
-            if (collectionsListMeta.isNotEmpty()) {
+            }
+            if (collectionsListMeta.isNotEmpty() and toggledFilters.contains("Collections")) {
                 filtersLoaded.add(
                     CollectionFilterGroup(collectionsListMeta.map { CollectionFilter(it.title) })
                 )
             }
-            if (languagesListMeta.isNotEmpty()) {
+            if (languagesListMeta.isNotEmpty() and toggledFilters.contains("Languages")) {
                 filtersLoaded.add(
                     LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) })
                 )
             }
-            if (libraryListMeta.isNotEmpty()) {
+            if (libraryListMeta.isNotEmpty() and toggledFilters.contains("Libraries")) {
                 filtersLoaded.add(
                     LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) })
                 )
             }
-            if (pubStatusListMeta.isNotEmpty()) {
+            if (pubStatusListMeta.isNotEmpty() and toggledFilters.contains("Publication Status")) {
                 filtersLoaded.add(
                     PubStatusFilterGroup(pubStatusListMeta.map { PubStatusFilter(it.title) })
                 )
             }
-            filtersLoaded.add(
-                UserRating()
-            )
+            if (pubStatusListMeta.isNotEmpty() and toggledFilters.contains("Rating")) {
+                filtersLoaded.add(
+                    UserRating()
+                )
+            }
 
             // People Metadata:
-            if (personRoles.isNotEmpty()) {
+            if (personRoles.isNotEmpty() and toggledFilters.any { personRoles.contains(it) }) {
                 filtersLoaded.addAll(
                     listOf<Filter<*>>(
                         PeopleHeaderFilter(""),
@@ -675,49 +695,49 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                         PeopleHeaderFilter("PEOPLE")
                     )
                 )
-                if (peopleInRoles[0].isNotEmpty()) {
+                if (peopleInRoles[0].isNotEmpty() and toggledFilters.contains("Writer")) {
                     filtersLoaded.add(
                         WriterPeopleFilterGroup(
                             peopleInRoles[0].map { WriterPeopleFilter(it.name) }
                         )
                     )
                 }
-                if (peopleInRoles[1].isNotEmpty()) {
+                if (peopleInRoles[1].isNotEmpty() and toggledFilters.contains("Penciller")) {
                     filtersLoaded.add(
                         PencillerPeopleFilterGroup(
                             peopleInRoles[1].map { PencillerPeopleFilter(it.name) }
                         )
                     )
                 }
-                if (peopleInRoles[2].isNotEmpty()) {
+                if (peopleInRoles[2].isNotEmpty() and toggledFilters.contains("Inker")) {
                     filtersLoaded.add(
                         InkerPeopleFilterGroup(
                             peopleInRoles[2].map { InkerPeopleFilter(it.name) }
                         )
                     )
                 }
-                if (peopleInRoles[3].isNotEmpty()) {
+                if (peopleInRoles[3].isNotEmpty() and toggledFilters.contains("Colorist")) {
                     filtersLoaded.add(
                         ColoristPeopleFilterGroup(
                             peopleInRoles[3].map { ColoristPeopleFilter(it.name) }
                         )
                     )
                 }
-                if (peopleInRoles[4].isNotEmpty()) {
+                if (peopleInRoles[4].isNotEmpty() and toggledFilters.contains("Letterer")) {
                     filtersLoaded.add(
                         LettererPeopleFilterGroup(
                             peopleInRoles[4].map { LettererPeopleFilter(it.name) }
                         )
                     )
                 }
-                if (peopleInRoles[5].isNotEmpty()) {
+                if (peopleInRoles[5].isNotEmpty() and toggledFilters.contains("CoverArtist")) {
                     filtersLoaded.add(
                         CoverArtistPeopleFilterGroup(
                             peopleInRoles[5].map { CoverArtistPeopleFilter(it.name) }
                         )
                     )
                 }
-                if (peopleInRoles[6].isNotEmpty()) {
+                if (peopleInRoles[6].isNotEmpty() and toggledFilters.contains("Editor")) {
                     filtersLoaded.add(
                         EditorPeopleFilterGroup(
                             peopleInRoles[6].map { EditorPeopleFilter(it.name) }
@@ -725,21 +745,21 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     )
                 }
 
-                if (peopleInRoles[7].isNotEmpty()) {
+                if (peopleInRoles[7].isNotEmpty() and toggledFilters.contains("Publisher")) {
                     filtersLoaded.add(
                         PublisherPeopleFilterGroup(
                             peopleInRoles[7].map { PublisherPeopleFilter(it.name) }
                         )
                     )
                 }
-                if (peopleInRoles[8].isNotEmpty()) {
+                if (peopleInRoles[8].isNotEmpty() and toggledFilters.contains("Character")) {
                     filtersLoaded.add(
                         CharacterPeopleFilterGroup(
                             peopleInRoles[8].map { CharacterPeopleFilter(it.name) }
                         )
                     )
                 }
-                if (peopleInRoles[9].isNotEmpty()) {
+                if (peopleInRoles[9].isNotEmpty() and toggledFilters.contains("Translator")) {
                     filtersLoaded.add(
                         TranslatorPeopleFilterGroup(
                             peopleInRoles[9].map { TranslatorPeopleFilter(it.name) }
@@ -843,13 +863,29 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     }
 
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
-        screen.addPreference(
-            screen.editTextPreference(
-                ADDRESS_TITLE,
-                "",
-                "The OPDS url copied from User Settings. This should include address and the api key on end."
-            )
+        val opdsAddressPref = screen.editTextPreference(
+            ADDRESS_TITLE,
+            "",
+            "The OPDS url copied from User Settings. This should include address and the api key on end."
         )
+        val enabledFiltersPref = MultiSelectListPreference(screen.context).apply {
+            key = KavitaConstants.toggledFiltersPref
+            title = "Default filters shown"
+            summary = "Show these filters in the filter list"
+
+            entries = KavitaConstants.filterPrefEntries
+            entryValues = entries
+            setDefaultValue(KavitaConstants.defaultFilterPrefEntries)
+            setOnPreferenceChangeListener { _, newValue ->
+                val checkValue = newValue as Set<String>
+                preferences.edit()
+                    .putStringSet(KavitaConstants.toggledFiltersPref, checkValue)
+                    .commit()
+            }
+        }
+
+        screen.addPreference(opdsAddressPref)
+        screen.addPreference(enabledFiltersPref)
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(

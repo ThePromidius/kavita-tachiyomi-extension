@@ -2,10 +2,12 @@ package eu.kanade.tachiyomi.extension.all.batoto
 
 import android.app.Application
 import android.content.SharedPreferences
+import androidx.preference.CheckBoxPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import com.squareup.duktape.Duktape
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
@@ -16,13 +18,19 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.FormBody
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.parser.Parser
@@ -30,7 +38,9 @@ import rx.Observable
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 open class BatoTo(
@@ -43,7 +53,7 @@ open class BatoTo(
     }
 
     override val name: String = "Bato.to"
-    override val baseUrl: String = getResolutionPref()!!
+    override val baseUrl: String = getMirrorPref()!!
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         val mirrorPref = ListPreference(screen.context).apply {
@@ -61,17 +71,35 @@ open class BatoTo(
                 preferences.edit().putString("${MIRROR_PREF_KEY}_$lang", entry).commit()
             }
         }
+        val altChapterListPref = CheckBoxPreference(screen.context).apply {
+            key = "${ALT_CHAPTER_LIST_PREF_KEY}_$lang"
+            title = ALT_CHAPTER_LIST_PREF_TITLE
+            summary = ALT_CHAPTER_LIST_PREF_SUMMARY
+            setDefaultValue(ALT_CHAPTER_LIST_PREF_DEFAULT_VALUE)
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val checkValue = newValue as Boolean
+                preferences.edit().putBoolean("${ALT_CHAPTER_LIST_PREF_KEY}_$lang", checkValue).commit()
+            }
+        }
         screen.addPreference(mirrorPref)
+        screen.addPreference(altChapterListPref)
     }
 
-    private fun getResolutionPref(): String? = preferences.getString("${MIRROR_PREF_KEY}_$lang", MIRROR_PREF_DEFAULT_VALUE)
+    private fun getMirrorPref(): String? = preferences.getString("${MIRROR_PREF_KEY}_$lang", MIRROR_PREF_DEFAULT_VALUE)
+    private fun getAltChapterListPref(): Boolean = preferences.getBoolean("${ALT_CHAPTER_LIST_PREF_KEY}_$lang", ALT_CHAPTER_LIST_PREF_DEFAULT_VALUE)
 
     companion object {
         private const val MIRROR_PREF_KEY = "MIRROR"
         private const val MIRROR_PREF_TITLE = "Mirror"
-        private val MIRROR_PREF_ENTRIES = arrayOf("Bato.to", "Batotoo.com", "Comiko.net", "Battwo.com", "Mangatoto.com")
-        private val MIRROR_PREF_ENTRY_VALUES = arrayOf("https://bato.to", "https://batotoo.com", "https://comiko.net", "https://battwo.com", "https://mangatoto.com")
+        private val MIRROR_PREF_ENTRIES = arrayOf("Bato.to", "Batotoo.com", "Comiko.net", "Battwo.com", "Mangatoto.com", "Mycdhands.com")
+        private val MIRROR_PREF_ENTRY_VALUES = arrayOf("https://bato.to", "https://batotoo.com", "https://comiko.net", "https://battwo.com", "https://mangatoto.com", "https://mycdhands.com")
         private val MIRROR_PREF_DEFAULT_VALUE = MIRROR_PREF_ENTRY_VALUES[0]
+
+        private const val ALT_CHAPTER_LIST_PREF_KEY = "ALT_CHAPTER_LIST"
+        private const val ALT_CHAPTER_LIST_PREF_TITLE = "Alternative Chapter List"
+        private const val ALT_CHAPTER_LIST_PREF_SUMMARY = "If checked, uses an alternate chapter list"
+        private const val ALT_CHAPTER_LIST_PREF_DEFAULT_VALUE = false
     }
 
     override val supportsLatest = true
@@ -125,57 +153,86 @@ open class BatoTo(
                     }
             }
             query.isNotBlank() -> {
-                val url = "$baseUrl/search?word=$query&page=$page"
-                client.newCall(GET(url, headers)).asObservableSuccess()
+                val url = "$baseUrl/search".toHttpUrl().newBuilder()
+                    .addQueryParameter("word", query)
+                    .addQueryParameter("page", page.toString())
+                filters.forEach { filter ->
+                    when (filter) {
+                        is LetterFilter -> {
+                            if (filter.state == 1) {
+                                url.addQueryParameter("mode", "letter")
+                            }
+                        }
+                    }
+                }
+                client.newCall(GET(url.build().toString(), headers)).asObservableSuccess()
                     .map { response ->
                         queryParse(response)
                     }
             }
             else -> {
-                val sortFilter = filters.findInstance<SortFilter>()!!
-                val reverseSortFilter = filters.findInstance<ReverseSortFilter>()!!
-                val statusFilter = filters.findInstance<StatusFilter>()!!
-                val langFilter = filters.findInstance<LangGroupFilter>()!!
-                val originFilter = filters.findInstance<OriginGroupFilter>()!!
-                val genreFilter = filters.findInstance<GenreGroupFilter>()!!
-                val minChapterFilter = filters.findInstance<MinChapterTextFilter>()!!
-                val maxChapterFilter = filters.findInstance<MaxChapterTextFilter>()!!
                 val url = "$baseUrl/browse".toHttpUrlOrNull()!!.newBuilder()
+                var min = ""
+                var max= ""
+                filters.forEach { filter ->
+                    when (filter) {
+                        is UtilsFilter -> {
+                            if (filter.state != 0) {
+                                val filterUrl = "$baseUrl/_utils/comic-list?type=${filter.selected}"
+                                return client.newCall(GET(filterUrl, headers)).asObservableSuccess()
+                                    .map { response ->
+                                        queryUtilsParse(response)
+                                    }
+                            }
+                        }
+                        is HistoryFilter -> {
+                            if (filter.state != 0) {
+                                val filterUrl = "$baseUrl/ajax.my.${filter.selected}.paging"
+                                return client.newCall(POST(filterUrl, headers, formBuilder().build())).asObservableSuccess()
+                                    .map { response ->
+                                        queryHistoryParse(response)
+                                    }
+                            }
+                        }
+                        is LangGroupFilter -> {
+                            if (filter.selected.isEmpty()) {
+                                url.addQueryParameter("langs", siteLang)
+                            } else {
+                                val selection = "${filter.selected.joinToString(",")},$siteLang"
+                                url.addQueryParameter("langs", selection)
+                            }
+                        }
+                        is GenreGroupFilter -> {
+                            with(filter) {
+                                url.addQueryParameter(
+                                    "genres", included.joinToString(",") + "|" + excluded.joinToString(",")
+                                )
+                            }
+                        }
+                        is StatusFilter -> url.addQueryParameter("release", filter.selected)
+                        is SortFilter -> {
+                            if (filter.state != null) {
+                                val sort = getSortFilter()[filter.state!!.index].value
+                                val value = when (filter.state!!.ascending) {
+                                    true -> "az"
+                                    false -> "za"
+                                }
+                                url.addQueryParameter("sort", "$sort.$value")
+                            }
+                        }
+                        is OriginGroupFilter -> {
+                            if (filter.selected.isNotEmpty()) {
+                                url.addQueryParameter("origs", filter.selected.joinToString(","))
+                            }
+                        }
+                        is MinChapterTextFilter -> min = filter.state
+                        is MaxChapterTextFilter -> max = filter.state
+                    }
+                }
                 url.addQueryParameter("page", page.toString())
 
-                with(langFilter) {
-                    if (this.selected.isEmpty()) {
-                        url.addQueryParameter("langs", siteLang)
-                    } else {
-                        val selection = "${this.selected.joinToString(",")},$siteLang"
-                        url.addQueryParameter("langs", selection)
-                    }
-                }
-
-                with(genreFilter) {
-                    url.addQueryParameter(
-                        "genres", included.joinToString(",") + "|" + excluded.joinToString(",")
-                    )
-                }
-
-                with(statusFilter) {
-                    url.addQueryParameter("release", this.selected)
-                }
-
-                with(sortFilter) {
-                    if (reverseSortFilter.state) {
-                        url.addQueryParameter("sort", "${this.selected}.az")
-                    } else {
-                        url.addQueryParameter("sort", "${this.selected}.za")
-                    }
-                }
-
-                if (originFilter.selected.isNotEmpty()) {
-                    url.addQueryParameter("origs", originFilter.selected.joinToString(","))
-                }
-
-                if (maxChapterFilter.state.isNotEmpty() or minChapterFilter.state.isNotEmpty()) {
-                    url.addQueryParameter("chapters", minChapterFilter.state + "-" + maxChapterFilter.state)
+                if (max.isNotEmpty() or min.isNotEmpty()) {
+                    url.addQueryParameter("chapters", "$min-$max")
                 }
 
                 client.newCall(GET(url.build().toString(), headers)).asObservableSuccess()
@@ -205,6 +262,46 @@ open class BatoTo(
         return MangasPage(mangas, nextPage)
     }
 
+    private fun queryUtilsParse(response: Response): MangasPage {
+        val document = response.asJsoup()
+        val mangas = document.select("tbody > tr")
+            .map { element -> searchUtilsFromElement(element) }
+        return MangasPage(mangas, false)
+    }
+
+    private fun queryHistoryParse(response: Response): MangasPage {
+        val json = json.decodeFromString<JsonObject>(response.body!!.string())
+        val html = json.jsonObject["html"]!!.jsonPrimitive.content
+
+        val document = Jsoup.parse(html, response.request.url.toString())
+        val mangas = document.select(".my-history-item")
+            .map { element -> searchHistoryFromElement(element) }
+        return MangasPage(mangas, false)
+    }
+
+    private fun searchUtilsFromElement(element: Element): SManga {
+        val manga = SManga.create()
+        manga.setUrlWithoutDomain(element.select("td a").attr("href"))
+        manga.title = element.select("td a").text()
+        manga.thumbnail_url = element.select("img").attr("abs:src")
+        return manga
+    }
+
+    private fun searchHistoryFromElement(element: Element): SManga {
+        val manga = SManga.create()
+        manga.setUrlWithoutDomain(element.select(".position-relative a").attr("href"))
+        manga.title = element.select(".position-relative a").text()
+        manga.thumbnail_url = element.select("img").attr("abs:src")
+        return manga
+    }
+
+    open fun formBuilder() = FormBody.Builder().apply {
+        add("_where", "browse")
+        add("first", "0")
+        add("limit", "0")
+        add("prevPos", "null")
+    }
+
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = throw UnsupportedOperationException("Not used")
     override fun searchMangaSelector() = throw UnsupportedOperationException("Not used")
     override fun searchMangaFromElement(element: Element) = throw UnsupportedOperationException("Not used")
@@ -226,7 +323,7 @@ open class BatoTo(
         manga.artist = infoElement.select("div.attr-item:contains(author) a:last-child").text()
         manga.status = parseStatus(status)
         manga.genre = infoElement.select(".attr-item b:contains(genres) + span ").joinToString { it.text() }
-        manga.description = infoElement.select("div.limit-html").text()
+        manga.description = infoElement.select("div.limit-html").text() + "\n" + infoElement.select(".episode-list > .alert-warning").text().trim()
         manga.thumbnail_url = document.select("div.attr-cover img")
             .attr("abs:src")
         return manga
@@ -237,6 +334,39 @@ open class BatoTo(
         status.contains("Ongoing") -> SManga.ONGOING
         status.contains("Completed") -> SManga.COMPLETED
         else -> SManga.UNKNOWN
+    }
+
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> {
+        val url = client.newCall(
+            GET(
+                when {
+                    manga.url.startsWith("http") -> manga.url
+                    else -> "$baseUrl${manga.url}"
+                }
+            )
+        ).execute().asJsoup()
+        if (getAltChapterListPref() || checkChapterLists(url)) {
+            val id = manga.url.substringBeforeLast("/").substringAfterLast("/").trim()
+            return client.newCall(GET("$baseUrl/rss/series/$id.xml"))
+                .asObservableSuccess()
+                .map { altChapterParse(it, manga.title) }
+        }
+        return super.fetchChapterList(manga)
+    }
+
+    private fun altChapterParse(response: Response, title: String): List<SChapter> {
+        return Jsoup.parse(response.body!!.string(), response.request.url.toString(), Parser.xmlParser())
+            .select("channel > item").map { item ->
+                SChapter.create().apply {
+                    url = item.selectFirst("guid").text()
+                    name = item.selectFirst("title").text().substringAfter(title).trim()
+                    date_upload = SimpleDateFormat("E, dd MMM yyyy H:m:s Z", Locale.US).parse(item.selectFirst("pubDate").text())?.time ?: 0L
+                }
+            }
+    }
+
+    private fun checkChapterLists(document: Document): Boolean {
+        return document.select(".episode-list > .alert-warning").text().contains("This comic has been marked as deleted and the chapter list is not available.")
     }
 
     override fun chapterListRequest(manga: SManga): Request {
@@ -372,19 +502,24 @@ open class BatoTo(
     private fun String.removeEntities(): String = Parser.unescapeEntities(this, true)
 
     override fun getFilterList() = FilterList(
-        // LetterFilter(),
+        LetterFilter(getLetterFilter(), 0),
+        Filter.Separator(),
         Filter.Header("NOTE: Ignored if using text search!"),
         Filter.Separator(),
-        SortFilter(getSortFilter(), 5),
+        SortFilter(getSortFilter().map { it.name }.toTypedArray()),
         StatusFilter(getStatusFilter(), 0),
         GenreGroupFilter(getGenreFilter()),
         OriginGroupFilter(getOrginFilter()),
         LangGroupFilter(getLangFilter()),
         MinChapterTextFilter(),
         MaxChapterTextFilter(),
-        ReverseSortFilter(),
+        Filter.Separator(),
+        Filter.Header("NOTE: Filters below are incompatible with any other filters!"),
+        Filter.Header("NOTE: Login Required!"),
+        Filter.Separator(),
+        UtilsFilter(getUtilsFilter(), 0),
+        HistoryFilter(getHistoryFilter(), 0),
     )
-
     class SelectFilterOption(val name: String, val value: String)
     class CheckboxFilterOption(val value: String, name: String, default: Boolean = false) : Filter.CheckBox(name, default)
     class TriStateFilterOption(val value: String, name: String, default: Int = 0) : Filter.TriState(name, default)
@@ -409,15 +544,21 @@ open class BatoTo(
 
     abstract class TextFilter(name: String) : Filter.Text(name)
 
-    class SortFilter(options: List<SelectFilterOption>, default: Int) : SelectFilter("Sort By", options, default)
-    class ReverseSortFilter(default: Boolean = false) : Filter.CheckBox("Revers Sort", default)
+    class SortFilter(sortables: Array<String>) : Filter.Sort("Sort", sortables, Selection(5, false))
     class StatusFilter(options: List<SelectFilterOption>, default: Int) : SelectFilter("Status", options, default)
     class OriginGroupFilter(options: List<CheckboxFilterOption>) : CheckboxGroupFilter("Origin", options)
     class GenreGroupFilter(options: List<TriStateFilterOption>) : TriStateGroupFilter("Genre", options)
     class MinChapterTextFilter : TextFilter("Min. Chapters")
     class MaxChapterTextFilter : TextFilter("Max. Chapters")
     class LangGroupFilter(options: List<CheckboxFilterOption>) : CheckboxGroupFilter("Languages", options)
-    class LetterFilter(default: Boolean = false) : Filter.CheckBox("Letter matching mode (Slow)", default)
+    class LetterFilter(options: List<SelectFilterOption>, default: Int) : SelectFilter("Letter matching mode (Slow)", options, default)
+    class UtilsFilter(options: List<SelectFilterOption>, default: Int) : SelectFilter("Utils comic list", options, default)
+    class HistoryFilter(options: List<SelectFilterOption>, default: Int) : SelectFilter("Personal list", options, default)
+
+    private fun getLetterFilter() = listOf(
+        SelectFilterOption("Disabled", "disabled"),
+        SelectFilterOption("Enabled", "enabled"),
+    )
 
     private fun getSortFilter() = listOf(
         SelectFilterOption("Z-A", "title"),
@@ -429,6 +570,28 @@ open class BatoTo(
         SelectFilterOption("Most Views 7 days", "views_w"),
         SelectFilterOption("Most Views 24 hours", "views_d"),
         SelectFilterOption("Most Views 60 minutes", "views_h"),
+    )
+
+    private fun getHistoryFilter() = listOf(
+        SelectFilterOption("None", ""),
+        SelectFilterOption("My History", "history"),
+        SelectFilterOption("My Updates", "updates"),
+    )
+
+    private fun getUtilsFilter() = listOf(
+        SelectFilterOption("None", ""),
+        SelectFilterOption("Comics: I Created", "i-created"),
+        SelectFilterOption("Comics: I Modified", "i-modified"),
+        SelectFilterOption("Comics: I Uploaded", "i-uploaded"),
+        SelectFilterOption("Comics: Authorized to me", "i-authorized"),
+        SelectFilterOption("Comics: Draft Status", "status-draft"),
+        SelectFilterOption("Comics: Hidden Status", "status-hidden"),
+        SelectFilterOption("Ongoing and Not updated in 30-60 days", "not-updated-30-60"),
+        SelectFilterOption("Ongoing and Not updated in 60-90 days", "not-updated-60-90"),
+        SelectFilterOption("Ongoing and Not updated in 90-180 days", "not-updated-90-180"),
+        SelectFilterOption("Ongoing and Not updated in 180-360 days", "not-updated-180-360"),
+        SelectFilterOption("Ongoing and Not updated in 360-1000 days", "not-updated-360-1000"),
+        SelectFilterOption("Ongoing and Not updated more than 1000 days", "not-updated-1000"),
     )
 
     private fun getStatusFilter() = listOf(
@@ -767,6 +930,4 @@ open class BatoTo(
         CheckboxFilterOption("eu", "Basque"),
         CheckboxFilterOption("pt-PT", "Portuguese (Portugal)"),
     ).filterNot { it.value == siteLang }
-
-    private inline fun <reified T> Iterable<*>.findInstance() = find { it is T } as? T
 }

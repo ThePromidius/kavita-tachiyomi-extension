@@ -5,6 +5,7 @@ import BranchesDto
 import ChunksPageDto
 import LibraryDto
 import MangaDetDto
+import MyLibraryDto
 import PageDto
 import PageWrapperDto
 import SeriesWrapperDto
@@ -17,6 +18,7 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.text.InputType
 import android.widget.Toast
+import androidx.preference.ListPreference
 import eu.kanade.tachiyomi.lib.dataimage.DataImageInterceptor
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
@@ -56,26 +58,30 @@ import java.util.Locale
 import kotlin.math.absoluteValue
 import kotlin.random.Random
 class Remanga : ConfigurableSource, HttpSource() {
+
     override val name = "Remanga"
 
-    override val baseUrl = "https://api.remanga.org"
-
     override val lang = "ru"
+
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
+
+    private val baseOrig: String = "https://api.remanga.org"
+    private val baseMirr: String = "https://api.xn--80aaig9ahr.xn--c1avg" // https://реманга.орг
+    private val domain: String? = preferences.getString(DOMAIN_PREF, baseOrig)
+    override val baseUrl = domain.toString()
 
     override val supportsLatest = true
 
     private var token: String = ""
 
-    protected open val userAgentRandomizer = " ${Random.nextInt().absoluteValue}"
+    private val userAgentRandomizer = " ${Random.nextInt().absoluteValue}"
 
     override fun headersBuilder(): Headers.Builder = Headers.Builder()
         .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/78.0$userAgentRandomizer")
         .add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/jxl,image/webp,*/*;q=0.8")
-        .add("Referer", "https://remanga.org")
-
-    private val preferences: SharedPreferences by lazy {
-        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
-    }
+        .add("Referer", baseUrl.replace("api.", ""))
 
     private fun authIntercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
@@ -110,10 +116,11 @@ class Remanga : ConfigurableSource, HttpSource() {
         val body = jsonObject.toString().toRequestBody(MEDIA_TYPE)
         val response = chain.proceed(POST("$baseUrl/api/users/login/", headers, body))
         if (response.code >= 400) {
-            throw Exception("Failed to login")
+            throw Exception("Не удалось войти")
         }
-        val user = json.decodeFromString<SeriesWrapperDto<UserDto>>(response.body!!.string())
-        return user.content.access_token
+        val user = json.decodeFromString<SeriesWrapperDto<UserDto>>(response.body!!.string()).content
+        USER_ID = user.id.toString()
+        return user.access_token
     }
 
     override fun popularMangaRequest(page: Int) = GET("$baseUrl/api/search/catalog/?ordering=-rating&count=$count&page=$page", headers)
@@ -125,11 +132,19 @@ class Remanga : ConfigurableSource, HttpSource() {
     override fun latestUpdatesParse(response: Response): MangasPage = searchMangaParse(response)
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val page = json.decodeFromString<PageWrapperDto<LibraryDto>>(response.body!!.string())
-        val mangas = page.content.map {
-            it.toSManga()
+        if (response.request.url.toString().contains("bookmarks")) {
+            val page = json.decodeFromString<PageWrapperDto<MyLibraryDto>>(response.body!!.string())
+            val mangas = page.content.map {
+                it.title.toSManga()
+            }
+            return MangasPage(mangas, page.props.page < page.props.total_pages)
+        } else {
+            val page = json.decodeFromString<PageWrapperDto<LibraryDto>>(response.body!!.string())
+            val mangas = page.content.map {
+                it.toSManga()
+            }
+            return MangasPage(mangas, page.props.page < page.props.total_pages)
         }
-        return MangasPage(mangas, page.props.page < page.props.total_pages)
     }
 
     private fun LibraryDto.toSManga(): SManga =
@@ -188,6 +203,16 @@ class Remanga : ConfigurableSource, HttpSource() {
                 is GenreList -> filter.state.forEach { genre ->
                     if (genre.state != Filter.TriState.STATE_IGNORE) {
                         url.addQueryParameter(if (genre.isIncluded()) "genres" else "exclude_genres", genre.id)
+                    }
+                }
+                is MyList -> {
+                    if (filter.state > 0) {
+                        if (USER_ID == "") {
+                            throw Exception("Пользователь не найден")
+                        }
+                        val TypeQ = getMyList()[filter.state].id
+                        val UserProfileUrl = "$baseUrl/api/users/$USER_ID/bookmarks/?type=$TypeQ&page=$page".toHttpUrlOrNull()!!.newBuilder()
+                        return GET(UserProfileUrl.toString(), headers)
                     }
                 }
             }
@@ -328,8 +353,11 @@ class Remanga : ConfigurableSource, HttpSource() {
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val chapters = json.decodeFromString<SeriesWrapperDto<List<BookDto>>>(response.body!!.string())
-        return chapters.content.filter { !it.is_paid or (it.is_bought == true) }.map { chapter ->
+        var chapters = json.decodeFromString<SeriesWrapperDto<List<BookDto>>>(response.body!!.string()).content
+        if (!preferences.getBoolean(PAID_PREF, false)) {
+            chapters = chapters.filter { !it.is_paid or (it.is_bought == true) }
+        }
+        return chapters.map { chapter ->
             SChapter.create().apply {
                 chapter_number = chapter.chapter.split(".").take(2).joinToString(".").toFloat()
                 name = chapterName(chapter)
@@ -344,7 +372,7 @@ class Remanga : ConfigurableSource, HttpSource() {
 
     private fun fixLink(link: String): String {
         if (!link.startsWith("http")) {
-            return "https://remanga.org$link"
+            return baseUrl.replace("api.", "") + link
         }
         return link
     }
@@ -419,7 +447,8 @@ class Remanga : ConfigurableSource, HttpSource() {
         CategoryList(getCategoryList()),
         TypeList(getTypeList()),
         StatusList(getStatusList()),
-        AgeList(getAgeList())
+        AgeList(getAgeList()),
+        MyList(MyStatus)
     )
 
     private class OrderBy : Filter.Sort(
@@ -599,11 +628,21 @@ class Remanga : ConfigurableSource, HttpSource() {
         SearchFilter("юри", "41"),
         SearchFilter("яой", "43")
     )
+    private class MyList(favorites: Array<String>) : Filter.Select<String>("Мои списки (только)", favorites)
+    private data class MyListUnit(val name: String, val id: String)
+    private val MyStatus = getMyList().map {
+        it.name
+    }.toTypedArray()
 
-    override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
-        screen.addPreference(screen.editTextPreference(USERNAME_TITLE, USERNAME_DEFAULT, username))
-        screen.addPreference(screen.editTextPreference(PASSWORD_TITLE, PASSWORD_DEFAULT, password, true))
-    }
+    private fun getMyList() = listOf(
+        MyListUnit("Каталог", "-"),
+        MyListUnit("Читаю", "0"),
+        MyListUnit("Буду читать", "1"),
+        MyListUnit("Прочитано", "2"),
+        MyListUnit("Отложено", "4"),
+        MyListUnit("Брошено ", "3"),
+        MyListUnit("Не интересно ", "5")
+    )
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(title: String, default: String, value: String, isPassword: Boolean = false): androidx.preference.EditTextPreference {
         return androidx.preference.EditTextPreference(context).apply {
@@ -631,6 +670,42 @@ class Remanga : ConfigurableSource, HttpSource() {
             }
         }
     }
+    override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
+        val domainPref = ListPreference(screen.context).apply {
+            key = DOMAIN_PREF
+            title = DOMAIN_PREF_Title
+            entries = arrayOf("Основной (remanga.org)", "Зеркало (реманга.орг)")
+            entryValues = arrayOf(baseOrig, baseMirr)
+            summary = "%s"
+            setDefaultValue(baseOrig)
+            setOnPreferenceChangeListener { _, newValue ->
+                try {
+                    val res = preferences.edit().putString(DOMAIN_PREF, newValue as String).commit()
+                    val warning = "Для смены домена необходимо перезапустить приложение с полной остановкой."
+                    Toast.makeText(screen.context, warning, Toast.LENGTH_LONG).show()
+                    res
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    false
+                }
+            }
+        }
+        val paidChapterShow = androidx.preference.CheckBoxPreference(screen.context).apply {
+            key = PAID_PREF
+            title = PAID_PREF_Title
+            summary = "Показывает не купленные главы(может вызвать ошибки при обновлении/автозагрузке)"
+            setDefaultValue(false)
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val checkValue = newValue as Boolean
+                preferences.edit().putBoolean(key, checkValue).commit()
+            }
+        }
+        screen.addPreference(domainPref)
+        screen.addPreference(paidChapterShow)
+        screen.addPreference(screen.editTextPreference(USERNAME_TITLE, USERNAME_DEFAULT, username))
+        screen.addPreference(screen.editTextPreference(PASSWORD_TITLE, PASSWORD_DEFAULT, password, true))
+    }
 
     private fun getPrefUsername(): String = preferences.getString(USERNAME_TITLE, USERNAME_DEFAULT)!!
     private fun getPrefPassword(): String = preferences.getString(PASSWORD_TITLE, PASSWORD_DEFAULT)!!
@@ -640,11 +715,21 @@ class Remanga : ConfigurableSource, HttpSource() {
     private val password by lazy { getPrefPassword() }
 
     companion object {
+        private var USER_ID = ""
+
         private val MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
+
         private const val USERNAME_TITLE = "Username"
         private const val USERNAME_DEFAULT = ""
         private const val PASSWORD_TITLE = "Password"
         private const val PASSWORD_DEFAULT = ""
+
         const val PREFIX_SLUG_SEARCH = "slug:"
+
+        private const val DOMAIN_PREF = "REMangaDomain"
+        private const val DOMAIN_PREF_Title = "Выбор домена"
+
+        private const val PAID_PREF = "PaidChapter"
+        private const val PAID_PREF_Title = "Показывать платные главы"
     }
 }

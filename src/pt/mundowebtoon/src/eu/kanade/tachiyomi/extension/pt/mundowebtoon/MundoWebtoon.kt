@@ -2,17 +2,22 @@ package eu.kanade.tachiyomi.extension.pt.mundowebtoon
 
 import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.select.Elements
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -43,7 +48,7 @@ class MundoWebtoon : ParsedHttpSource() {
 
     override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
         title = element.select("h6.andro_product-title small").text().withoutLanguage()
-        thumbnail_url = element.select("div.andro_product-thumb img").attr("abs:data-src")
+        thumbnail_url = element.select("div.andro_product-thumb img").srcAttr()
         setUrlWithoutDomain(element.select("div.andro_product-thumb > a").attr("abs:href"))
     }
 
@@ -58,7 +63,7 @@ class MundoWebtoon : ParsedHttpSource() {
 
     override fun latestUpdatesFromElement(element: Element): SManga = SManga.create().apply {
         title = element.select("h5.andro_product-title").text().withoutLanguage()
-        thumbnail_url = element.select("div.andro_product-thumb img").attr("abs:src")
+        thumbnail_url = element.select("div.andro_product-thumb img").srcAttr()
         setUrlWithoutDomain(element.select("div.andro_product-thumb > a").attr("abs:href"))
     }
 
@@ -80,14 +85,21 @@ class MundoWebtoon : ParsedHttpSource() {
 
     override fun searchMangaFromElement(element: Element): SManga = SManga.create().apply {
         title = element.select("span.andro_product-title").text().withoutLanguage()
-        thumbnail_url = element.select("div.andro_product-thumb img").attr("abs:src")
+        thumbnail_url = element.select("div.andro_product-thumb img").srcAttr()
         setUrlWithoutDomain(element.select("div.andro_product-thumb > a").attr("abs:href"))
     }
 
     override fun searchMangaNextPageSelector(): String? = null
 
+    override fun mangaDetailsParse(response: Response): SManga {
+        val fixedHtml = response.body!!.string().replace("\t", " ")
+        val document = Jsoup.parse(fixedHtml, response.request.url.toString())
+
+        return mangaDetailsParse(document)
+    }
+
     override fun mangaDetailsParse(document: Document): SManga = SManga.create().apply {
-        val infoElement = document.selectFirst("div.andro_product-single-content")
+        val infoElement = document.select("div.andro_product-single-content").first()!!
 
         title = infoElement.select("div.mangaTitulo h3").text().withoutLanguage()
         author = infoElement.select("div.BlDataItem:contains(Autor) a")
@@ -100,7 +112,7 @@ class MundoWebtoon : ParsedHttpSource() {
         status = infoElement.select("div.BlDataItem:contains(Status) a").firstOrNull()
             ?.text()?.toStatus() ?: SManga.UNKNOWN
         description = infoElement.select("div.andro_product-excerpt").text()
-        thumbnail_url = document.select("div.andro_product-single-thumb img").attr("abs:src")
+        thumbnail_url = document.select("div.andro_product-single-thumb img").srcAttr()
     }
 
     override fun chapterListSelector() = "div#CapitulosLista div.CapitulosListaItem"
@@ -114,17 +126,26 @@ class MundoWebtoon : ParsedHttpSource() {
     }
 
     override fun pageListRequest(chapter: SChapter): Request {
-        val newHeaders = headersBuilder()
-            .set("Referer", baseUrl + chapter.url.substringBeforeLast("/"))
+        val chapterUrl = (baseUrl + chapter.url).toHttpUrl()
+
+        val payload = FormBody.Builder()
+            .add("data", chapterUrl.pathSegments[1])
+            .add("num", chapterUrl.pathSegments[2])
+            .add("modo", "1")
+            .add("busca", "img")
             .build()
 
-        return GET(baseUrl + chapter.url, newHeaders)
+        val newHeaders = headersBuilder()
+            .add("Content-Length", payload.contentLength().toString())
+            .add("Content-Type", payload.contentType().toString())
+            .set("Referer", baseUrl + chapter.url)
+            .build()
+
+        return POST("$baseUrl/leitor_image.php", newHeaders, payload)
     }
 
     override fun pageListParse(document: Document): List<Page> {
-        val chapterImages = document.select("div.container_images_img").first()
-
-        return chapterImages.select("img[pag]")
+        return document.select("img[pag]")
             .mapIndexed { i, element ->
                 Page(i, document.location(), element.attr("abs:src"))
             }
@@ -140,6 +161,9 @@ class MundoWebtoon : ParsedHttpSource() {
 
         return GET(page.imageUrl!!, newHeaders)
     }
+
+    private fun Elements.srcAttr(): String =
+        attr(if (hasAttr("data-src")) "data-src" else "src")
 
     private fun String.toDate(): Long {
         return runCatching { DATE_FORMATTER.parse(trim())?. time }

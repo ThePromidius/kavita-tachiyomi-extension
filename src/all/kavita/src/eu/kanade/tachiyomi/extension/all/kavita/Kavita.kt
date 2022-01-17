@@ -611,12 +611,27 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 }
                 peopleInRoles.add(peoplesWithRole)
             }
-            mutableListOf<Filter<*>>(
+            var filtersLoaded = mutableListOf<Filter<*>>(
                 SortFilter(sortableList.map { it.first }.toTypedArray()),
-                StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) }),
-                GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) }),
-                TagFilterGroup(tagsListMeta.map { TagFilter(it.name) }),
-                AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) }),
+                StatusFilterGroup(listOf("notRead", "inProgress", "read").map { StatusFilter(it) })
+            )
+
+            if (genresListMeta.isNotEmpty()) {
+                filtersLoaded.add(
+                    GenreFilterGroup(genresListMeta.map { GenreFilter(it.title) })
+                )
+            }
+            if (tagsListMeta.isNotEmpty()) {
+                filtersLoaded.add(
+                    TagFilterGroup(tagsListMeta.map { TagFilter(it.name) })
+                )
+            }
+            if (tagsListMeta.isNotEmpty()) {
+                filtersLoaded.add(
+                    AgeRatingFilterGroup(ageRatingsListMeta.map { AgeRatingFilter(it.title) })
+                )
+            }
+            filtersLoaded.add(
                 FormatsFilterGroup(
                     listOf(
                         "Image",
@@ -625,49 +640,116 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                         "Epub",
                         "Pdf"
                     ).map { FormatFilter(it) }
-                ),
-                CollectionFilterGroup(collectionsListMeta.map { CollectionFilter(it.title) }),
-                LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) }),
-                LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) }),
-                PubStatusFilterGroup(pubStatusListMeta.map { PubStatusFilter(it.title) }),
-                UserRating(),
-                // People Metadata:
-
-                PeopleHeaderFilter(""),
-                PeopleSeparatorFilter(),
-                PeopleHeaderFilter("PEOPLE"),
-                WriterPeopleFilterGroup(
-                    peopleInRoles[0].map { WriterPeopleFilter(it.name) }
-                ),
-
-                PencillerPeopleFilterGroup(
-                    peopleInRoles[1].map { PencillerPeopleFilter(it.name) }
-                ),
-                InkerPeopleFilterGroup(
-                    peopleInRoles[2].map { InkerPeopleFilter(it.name) }
-                ),
-                ColoristPeopleFilterGroup(
-                    peopleInRoles[3].map { ColoristPeopleFilter(it.name) }
-                ),
-                LettererPeopleFilterGroup(
-                    peopleInRoles[4].map { LettererPeopleFilter(it.name) }
-                ),
-                CoverArtistPeopleFilterGroup(
-                    peopleInRoles[5].map { CoverArtistPeopleFilter(it.name) }
-                ),
-                EditorPeopleFilterGroup(
-                    peopleInRoles[6].map { EditorPeopleFilter(it.name) }
-                ),
-                PublisherPeopleFilterGroup(
-                    peopleInRoles[7].map { PublisherPeopleFilter(it.name) }
-                ),
-                CharacterPeopleFilterGroup(
-                    peopleInRoles[8].map { CharacterPeopleFilter(it.name) }
-                ),
-                TranslatorPeopleFilterGroup(
-                    peopleInRoles[9].map { TranslatorPeopleFilter(it.name) }
-                ),
+                )
             )
+            if (collectionsListMeta.isNotEmpty()) {
+                filtersLoaded.add(
+                    CollectionFilterGroup(collectionsListMeta.map { CollectionFilter(it.title) })
+                )
+            }
+            if (languagesListMeta.isNotEmpty()) {
+                filtersLoaded.add(
+                    LanguageFilterGroup(languagesListMeta.map { LanguageFilter(it.title) })
+                )
+            }
+            if (libraryListMeta.isNotEmpty()) {
+                filtersLoaded.add(
+                    LibrariesFilterGroup(libraryListMeta.map { LibraryFilter(it.name) })
+                )
+            }
+            if (pubStatusListMeta.isNotEmpty()) {
+                filtersLoaded.add(
+                    PubStatusFilterGroup(pubStatusListMeta.map { PubStatusFilter(it.title) })
+                )
+            }
+            filtersLoaded.add(
+                UserRating()
+            )
+
+            // People Metadata:
+            if (personRoles.isNotEmpty()) {
+                filtersLoaded.addAll(
+                    listOf<Filter<*>>(
+                        PeopleHeaderFilter(""),
+                        PeopleSeparatorFilter(),
+                        PeopleHeaderFilter("PEOPLE")
+                    )
+                )
+                if (peopleInRoles[0].isNotEmpty()) {
+                    filtersLoaded.add(
+                        WriterPeopleFilterGroup(
+                            peopleInRoles[0].map { WriterPeopleFilter(it.name) }
+                        )
+                    )
+                }
+                if (peopleInRoles[1].isNotEmpty()) {
+                    filtersLoaded.add(
+                        PencillerPeopleFilterGroup(
+                            peopleInRoles[1].map { PencillerPeopleFilter(it.name) }
+                        )
+                    )
+                }
+                if (peopleInRoles[2].isNotEmpty()) {
+                    filtersLoaded.add(
+                        InkerPeopleFilterGroup(
+                            peopleInRoles[2].map { InkerPeopleFilter(it.name) }
+                        )
+                    )
+                }
+                if (peopleInRoles[3].isNotEmpty()) {
+                    filtersLoaded.add(
+                        ColoristPeopleFilterGroup(
+                            peopleInRoles[3].map { ColoristPeopleFilter(it.name) }
+                        )
+                    )
+                }
+                if (peopleInRoles[4].isNotEmpty()) {
+                    filtersLoaded.add(
+                        LettererPeopleFilterGroup(
+                            peopleInRoles[4].map { LettererPeopleFilter(it.name) }
+                        )
+                    )
+                }
+                if (peopleInRoles[5].isNotEmpty()) {
+                    filtersLoaded.add(
+                        CoverArtistPeopleFilterGroup(
+                            peopleInRoles[5].map { CoverArtistPeopleFilter(it.name) }
+                        )
+                    )
+                }
+                if (peopleInRoles[6].isNotEmpty()) {
+                    filtersLoaded.add(
+                        EditorPeopleFilterGroup(
+                            peopleInRoles[6].map { EditorPeopleFilter(it.name) }
+                        )
+                    )
+                }
+
+                if (peopleInRoles[7].isNotEmpty()) {
+                    filtersLoaded.add(
+                        PublisherPeopleFilterGroup(
+                            peopleInRoles[7].map { PublisherPeopleFilter(it.name) }
+                        )
+                    )
+                }
+                if (peopleInRoles[8].isNotEmpty()) {
+                    filtersLoaded.add(
+                        CharacterPeopleFilterGroup(
+                            peopleInRoles[8].map { CharacterPeopleFilter(it.name) }
+                        )
+                    )
+                }
+                if (peopleInRoles[9].isNotEmpty()) {
+                    filtersLoaded.add(
+                        TranslatorPeopleFilterGroup(
+                            peopleInRoles[9].map { TranslatorPeopleFilter(it.name) }
+                        )
+                    )
+                    filtersLoaded
+                } else {
+                    filtersLoaded
+                }
+            } else { filtersLoaded }
         } catch (e: Exception) {
             Log.e(LOG_TAG, "[FILTERS] Error while creating filter list", e)
             emptyList()

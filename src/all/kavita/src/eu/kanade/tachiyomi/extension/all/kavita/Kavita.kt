@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.text.InputType
 import android.util.Log
 import android.widget.Toast
+import androidx.preference.EditTextPreference
 import androidx.preference.MultiSelectListPreference
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.AuthenticationDto
@@ -56,9 +57,22 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.io.IOException
 import java.net.URLEncoder
+import java.security.MessageDigest
 
 class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
-    override val name = "Kavita"
+//    val customName = if (getPrefSourceName().isNotBlank()) { "(${getPrefSourceName()})" } else {
+//        if (suffix.isNotBlank()) { "($suffix)" } else { "" }
+//    }
+    override val id by lazy {
+        val key = "${"kavita_$suffix"}/all/$versionId"
+        val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
+        (0..7).map { bytes[it].toLong() and 0xff shl 8 * (7 - it) }.reduce(Long::or) and Long.MAX_VALUE
+    }
+//    override val name = "Komga${if (suffix.isNotBlank()) " ($suffix)" else ""}"
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
+    override val name = "Kavita (${preferences.getString(KavitaConstants.customSourceNamePref,suffix)})"
     override val lang = "all"
     override val supportsLatest = true
     // val apiUrl by lazy { getPrefApiUrl() } // Base URL is the API address of the Kavita Server. Should end with /api
@@ -66,7 +80,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     override val baseUrl by lazy { getPrefBaseUrl() }
     private val address by lazy { getPrefAddress() } // Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
     private var jwtToken = "" // * JWT Token for authentication with the server. Stored in memory.
-    private val LOG_TAG = "extension.all.kavita${if (suffix.isNotBlank()) ".$suffix" else ""}"
+    private val LOG_TAG = "extension.all.kavita${preferences.getString(KavitaConstants.customSourceNamePref,suffix)}"
     private var isLoged = false // Used to know if login was correct and not send login requests anymore
 
     private val json: Json by injectLazy()
@@ -130,7 +144,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     if (filter.state != null) {
                         toFilter.sorting = filter.state!!.index + 1
                         toFilter.sorting_asc = filter.state!!.ascending
-                        isFilterOn = true
+//                        isFilterOn = true
                     }
                 }
                 is StatusFilterGroup -> {
@@ -600,7 +614,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         Filter.Group<TranslatorPeopleFilter>("Translator", peoples)
 
     override fun getFilterList(): FilterList {
-        val toggledFilters = preferences.getStringSet(KavitaConstants.toggledFiltersPref, KavitaConstants.defaultFilterPrefEntries)
+        // fetchMetadataFiltering()
+
+        val toggledFilters = getToggledFilters()
+
         val filters = try {
             val peopleInRoles = mutableListOf<List<MetadataPeople>>()
             personRoles.map { role ->
@@ -858,10 +875,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         return payload.toString().toRequestBody(JSON_MEDIA_TYPE)
     }
 
-    private val preferences: SharedPreferences by lazy {
-        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
-    }
-
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
         val opdsAddressPref = screen.editTextPreference(
             ADDRESS_TITLE,
@@ -872,7 +885,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             key = KavitaConstants.toggledFiltersPref
             title = "Default filters shown"
             summary = "Show these filters in the filter list"
-
             entries = KavitaConstants.filterPrefEntries
             entryValues = entries
             setDefaultValue(KavitaConstants.defaultFilterPrefEntries)
@@ -883,9 +895,21 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     .commit()
             }
         }
+        val customSourceNamePref = EditTextPreference(screen.context).apply {
+            key = KavitaConstants.customSourceNamePref
+            title = "Name of the source shown in sources tab"
+            summary = "Here you can change this source name.\n" +
+                "You can write a descriptive name to identify this opds URL"
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit()
+                    .putString(KavitaConstants.customSourceNamePref, newValue.toString())
+                    .commit()
+            }
+        }
 
         screen.addPreference(opdsAddressPref)
         screen.addPreference(enabledFiltersPref)
+        screen.addPreference(customSourceNamePref)
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(
@@ -893,7 +917,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         default: String,
         summary: String,
         isPassword: Boolean = false
-    ): androidx.preference.EditTextPreference {
+    ): EditTextPreference {
         return androidx.preference.EditTextPreference(context).apply {
             key = title
             this.title = title
@@ -928,7 +952,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     // private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
     private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
     private fun getPrefApiUrl(): String = preferences.getString("APIURL", "")!!
-
+    private fun getToggledFilters() = preferences.getStringSet(KavitaConstants.toggledFiltersPref, KavitaConstants.defaultFilterPrefEntries)!!
+//    private fun getPrefSourceName(): String = preferences.getString("customPrefKey$suffix", "0")!!
     // We strip the last slash since we will append it above
     private fun getPrefAddress(): String {
         var path = preferences.getString(ADDRESS_TITLE, "")!!

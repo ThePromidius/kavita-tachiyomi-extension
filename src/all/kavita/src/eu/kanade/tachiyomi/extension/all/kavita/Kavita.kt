@@ -627,7 +627,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 peopleInRoles.add(peoplesWithRole)
             }
 
-            var filtersLoaded = mutableListOf<Filter<*>>()
+            val filtersLoaded = mutableListOf<Filter<*>>()
 
             if (sortableList.isNotEmpty() and toggledFilters.contains("Sort Options")) {
                 filtersLoaded.add(
@@ -885,7 +885,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             title = "Default filters shown"
             summary = "Show these filters in the filter list"
             entries = KavitaConstants.filterPrefEntries
-            entryValues = entries
+            entryValues = KavitaConstants.filterPrefEntriesValue
             setDefaultValue(KavitaConstants.defaultFilterPrefEntries)
             setOnPreferenceChangeListener { _, newValue ->
                 val checkValue = newValue as Set<String>
@@ -905,10 +905,24 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     .commit()
             }
         }
+        val resetFiltersPref = androidx.preference.SwitchPreferenceCompat(screen.context).apply {
+            title = "Testing button"
+            summary = "Trying to create a debug button"
 
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit()
+                    .remove(KavitaConstants.toggledFiltersPref)
+                    .commit()
+                false
+            }
+
+        }
         screen.addPreference(customSourceNamePref)
         screen.addPreference(opdsAddressPref)
         screen.addPreference(enabledFiltersPref)
+
+        // Debug clear preference filter
+        // screen.addPreference(resetFiltersPref)
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(
@@ -918,7 +932,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         summary: String,
         isPassword: Boolean = false
     ): EditTextPreference {
-        return androidx.preference.EditTextPreference(context).apply {
+        return EditTextPreference(context).apply {
             key = preKey
             this.title = title
             val input = preferences.getString(title, null)

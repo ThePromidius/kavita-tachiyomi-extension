@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.text.InputType
 import android.util.Log
 import android.widget.Toast
+import androidx.preference.EditTextPreference
 import androidx.preference.MultiSelectListPreference
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.AuthenticationDto
@@ -56,17 +57,27 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.io.IOException
 import java.net.URLEncoder
+import java.security.MessageDigest
 
 class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
-    override val name = "Kavita"
+
+    override val id by lazy {
+        val key = "${"kavita_$suffix"}/all/$versionId"
+        val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
+        (0..7).map { bytes[it].toLong() and 0xff shl 8 * (7 - it) }.reduce(Long::or) and Long.MAX_VALUE
+    }
+
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
+    override val name = "Kavita (${preferences.getString(KavitaConstants.customSourceNamePref,suffix)})"
     override val lang = "all"
     override val supportsLatest = true
-    // val apiUrl by lazy { getPrefApiUrl() } // Base URL is the API address of the Kavita Server. Should end with /api
     val apiUrl by lazy { getPrefApiUrl() }
     override val baseUrl by lazy { getPrefBaseUrl() }
     private val address by lazy { getPrefAddress() } // Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
     private var jwtToken = "" // * JWT Token for authentication with the server. Stored in memory.
-    private val LOG_TAG = "extension.all.kavita${if (suffix.isNotBlank()) ".$suffix" else ""}"
+    private val LOG_TAG = "extension.all.kavita_${preferences.getString(KavitaConstants.customSourceNamePref,suffix)!!.replace(' ','_')}"
     private var isLoged = false // Used to know if login was correct and not send login requests anymore
 
     private val json: Json by injectLazy()
@@ -85,7 +96,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         if (!isLoged) {
             doLogin()
         }
-
         return POST(
             "$apiUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -94,10 +104,15 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val result = response.parseAs<List<SeriesDto>>()
-        series = result
-        val mangaList = result.map { item -> helper.createSeriesDto(item, apiUrl) }
-        return MangasPage(mangaList, helper.hasNextPage(response))
+        try {
+            val result = response.parseAs<List<SeriesDto>>()
+            series = result
+            val mangaList = result.map { item -> helper.createSeriesDto(item, apiUrl) }
+            return MangasPage(mangaList, helper.hasNextPage(response))
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Possible outdated kavita", e)
+            throw IOException("Please check your kavita version.\nv0.5+ is required for the extension to work properly")
+        }
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
@@ -130,7 +145,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     if (filter.state != null) {
                         toFilter.sorting = filter.state!!.index + 1
                         toFilter.sorting_asc = filter.state!!.ascending
-                        isFilterOn = true
+                        // disabled till the search api is stable
+                        // isFilterOn = true
                     }
                 }
                 is StatusFilterGroup -> {
@@ -150,7 +166,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     }
                 }
                 is UserRating -> {
-                    println(filter.state)
                     toFilter.userRating = filter.state
                 }
                 is TagFilterGroup -> {
@@ -304,7 +319,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override fun searchMangaParse(response: Response): MangasPage {
         if (isFilterOn) {
-            // isFilterOn = false
             return popularMangaParse(response)
         } else {
             if (response.request.url.toString().contains("api/series/all"))
@@ -332,7 +346,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         return client.newCall(GET("$apiUrl/series/metadata?seriesId=$serieId", headersBuilder().build()))
             .asObservableSuccess()
             .map { response ->
-                Log.v(LOG_TAG, "fetchMangaDetails response body: ```${response.peekBody(Long.MAX_VALUE).string()}```")
+                Log.d(LOG_TAG, "fetchMangaDetails response body: ```${response.peekBody(Long.MAX_VALUE).string()}```")
                 mangaDetailsParse(response).apply { initialized = true }
             }
     }
@@ -512,7 +526,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         )
 
     private class SortFilter(sortables: Array<String>) : Filter.Sort("Sort by", sortables, Selection(0, true))
-    private class SortFilter_ascending(sortables: Array<String>) : Filter.Sort("Sort by", sortables, Selection(0, true))
 
     val sortableList = listOf(
         Pair("Sort name", 1),
@@ -600,7 +613,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         Filter.Group<TranslatorPeopleFilter>("Translator", peoples)
 
     override fun getFilterList(): FilterList {
-        val toggledFilters = preferences.getStringSet(KavitaConstants.toggledFiltersPref, KavitaConstants.defaultFilterPrefEntries)
+        val toggledFilters = getToggledFilters()
+
         val filters = try {
             val peopleInRoles = mutableListOf<List<MetadataPeople>>()
             personRoles.map { role ->
@@ -620,7 +634,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     SortFilter(sortableList.map { it.first }.toTypedArray())
                 )
             }
-            if (genresListMeta.isNotEmpty() and toggledFilters.contains("SRead Status")) {
+            if (toggledFilters.contains("Read Status")) {
                 filtersLoaded.add(
                     StatusFilterGroup(
                         listOf(
@@ -858,21 +872,18 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         return payload.toString().toRequestBody(JSON_MEDIA_TYPE)
     }
 
-    private val preferences: SharedPreferences by lazy {
-        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
-    }
-
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
         val opdsAddressPref = screen.editTextPreference(
             ADDRESS_TITLE,
+            "OPDS url",
             "",
             "The OPDS url copied from User Settings. This should include address and the api key on end."
         )
+
         val enabledFiltersPref = MultiSelectListPreference(screen.context).apply {
             key = KavitaConstants.toggledFiltersPref
             title = "Default filters shown"
             summary = "Show these filters in the filter list"
-
             entries = KavitaConstants.filterPrefEntries
             entryValues = entries
             setDefaultValue(KavitaConstants.defaultFilterPrefEntries)
@@ -883,19 +894,32 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     .commit()
             }
         }
+        val customSourceNamePref = EditTextPreference(screen.context).apply {
+            key = KavitaConstants.customSourceNamePref
+            title = "Displayed name for source"
+            summary = "Here you can change this source name.\n" +
+                "You can write a descriptive name to identify this opds URL"
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit()
+                    .putString(KavitaConstants.customSourceNamePref, newValue.toString())
+                    .commit()
+            }
+        }
 
+        screen.addPreference(customSourceNamePref)
         screen.addPreference(opdsAddressPref)
         screen.addPreference(enabledFiltersPref)
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(
+        preKey: String,
         title: String,
         default: String,
         summary: String,
         isPassword: Boolean = false
-    ): androidx.preference.EditTextPreference {
+    ): EditTextPreference {
         return androidx.preference.EditTextPreference(context).apply {
-            key = title
+            key = preKey
             this.title = title
             val input = preferences.getString(title, null)
             this.summary = if (input == null || input.isEmpty()) summary else input
@@ -928,7 +952,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     // private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
     private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
     private fun getPrefApiUrl(): String = preferences.getString("APIURL", "")!!
-
+    private fun getToggledFilters() = preferences.getStringSet(KavitaConstants.toggledFiltersPref, KavitaConstants.defaultFilterPrefEntries)!!
+//    private fun getPrefSourceName(): String = preferences.getString("customPrefKey$suffix", "0")!!
     // We strip the last slash since we will append it above
     private fun getPrefAddress(): String {
         var path = preferences.getString(ADDRESS_TITLE, "")!!
@@ -952,7 +977,11 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val baseUrlSetup = tokens[0].replace("\n", "\\n")
 
         if (!baseUrlSetup.startsWith("http")) {
-            throw Exception("""Url does not start with "http/s" but with ${baseUrlSetup.split("://")[0]} """)
+            try {
+                throw Exception("""Url does not start with "http/s" but with ${baseUrlSetup.split("://")[0]} """)
+            } catch (e: Exception) {
+                throw Exception("""Malformed Url: $baseUrlSetup""")
+            }
         }
         preferences.edit().putString("BASEURL", baseUrlSetup).commit()
         preferences.edit().putString("APIKEY", apiKey).commit()
@@ -993,12 +1022,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
         Log.v(LOG_TAG, "Performing Authentication...")
     }
-
-    /*catch (e:Exception)
-    {
-        Log.e(LOG_TAG, "Something went wrong while loging. Exception: $e")
-        throw IOException("Login incorrect. Please, send logs to the extension developers in the kavita discord")
-    }*/
 
     init {
         if (apiUrl.isNotBlank()) {

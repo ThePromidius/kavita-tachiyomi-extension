@@ -20,7 +20,7 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataLibrary
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPayload
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPeople
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPubStatus
-import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataTags
+import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataTag
 import eu.kanade.tachiyomi.extension.all.kavita.dto.PersonRole
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesMetadataDto
@@ -171,7 +171,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 is TagFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            toFilter.tags.add(tagsListMeta.find { it.name == content.name }!!.id)
+                            toFilter.tags.add(tagsListMeta.find { it.title == content.name }!!.id)
                             isFilterOn = true
                         }
                     }
@@ -492,7 +492,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     /** Some variable names already exist. im not good at naming add Meta suffix */
     private var genresListMeta = emptyList<MetadataGenres>()
-    private var tagsListMeta = emptyList<MetadataTags>()
+    private var tagsListMeta = emptyList<MetadataTag>()
     private var ageRatingsListMeta = emptyList<MetadataAgeRatings>()
     private var peopleListMeta = emptyList<MetadataPeople>()
     private var pubStatusListMeta = emptyList<MetadataPubStatus>()
@@ -653,7 +653,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             }
             if (tagsListMeta.isNotEmpty() and toggledFilters.contains("Tags")) {
                 filtersLoaded.add(
-                    TagFilterGroup(tagsListMeta.map { TagFilter(it.name) })
+                    TagFilterGroup(tagsListMeta.map { TagFilter(it.title) })
                 )
             }
             if (ageRatingsListMeta.isNotEmpty() and toggledFilters.contains("Age Rating")) {
@@ -806,7 +806,12 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             .add("Content-Type", "application/json")
             .add("Authorization", "Bearer $jwtToken")
     }
-
+    fun setupLoginHeaders(): Headers.Builder {
+        return Headers.Builder()
+            .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")
+            .add("Content-Type", "application/json")
+            .add("Authorization", "Bearer $jwtToken")
+    }
     private fun buildFilterBody(filter: MetadataPayload = toFilter): RequestBody {
         var filter = filter
         if (!isFilterOn) {
@@ -915,7 +920,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     .commit()
                 false
             }
-
         }
         screen.addPreference(customSourceNamePref)
         screen.addPreference(opdsAddressPref)
@@ -966,6 +970,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     // private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
     private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
     private fun getPrefApiUrl(): String = preferences.getString("APIURL", "")!!
+    private fun getPrefKey(key: String): String = preferences.getString(key, "")!!
+
     private fun getToggledFilters() = preferences.getStringSet(KavitaConstants.toggledFiltersPref, KavitaConstants.defaultFilterPrefEntries)!!
 //    private fun getPrefSourceName(): String = preferences.getString("customPrefKey$suffix", "0")!!
     // We strip the last slash since we will append it above
@@ -1000,28 +1006,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         preferences.edit().putString("BASEURL", baseUrlSetup).commit()
         preferences.edit().putString("APIKEY", apiKey).commit()
         preferences.edit().putString("APIURL", "$baseUrlSetup/api").commit()
-
-        val body = "{}".toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-        fun setupLoginHeaders(): Headers.Builder {
-            return Headers.Builder()
-                .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")
-                .add("Content-Type", "application/json")
-                .add("Authorization", "Bearer $jwtToken")
-        }
-        val request = POST(
-            "$apiUrl/Plugin/authenticate?apiKey=$apiKey&pluginName=${
-            URLEncoder.encode("Tachiyomi-Kavita","utf-8")}",
-            setupLoginHeaders().build(), body
-        )
-
-        client.newCall(request).execute().use {
-            if (it.code == 200) {
-                jwtToken = it.parseAs<AuthenticationDto>().token
-                isLoged = true
-            } else {
-                Log.e(LOG_TAG, "[LOGIN] Setup failed. Authentication was not successful -> Code: ${it.code}.Response message: ${it.message} Response body: ${it.body}.")
-            }
-        }
     }
 
     private fun doLogin() {
@@ -1035,6 +1019,20 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         if (jwtToken.isEmpty()) setupLogin()
 
         Log.v(LOG_TAG, "Performing Authentication...")
+
+        val request = POST(
+            "$apiUrl/Plugin/authenticate?apiKey=${getPrefKey("APIKEY")}&pluginName=${URLEncoder.encode("Tachiyomi-Kavita","utf-8")}",
+            setupLoginHeaders().build(), "{}".toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+        )
+        client.newCall(request).execute().use {
+            if (it.code == 200) {
+                jwtToken = it.parseAs<AuthenticationDto>().token
+                isLoged = true
+            } else {
+                Log.e(LOG_TAG, "[LOGIN] login failed. Authentication was not successful -> Code: ${it.code}.Response message: ${it.message} Response body: ${it.body!!}.")
+                throw LoginErrorException("[LOGIN] login failed. Authentication was not successful")
+            }
+        }
     }
 
     init {

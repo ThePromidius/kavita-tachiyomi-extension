@@ -68,19 +68,18 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
         (0..7).map { bytes[it].toLong() and 0xff shl 8 * (7 - it) }.reduce(Long::or) and Long.MAX_VALUE
     }
-//    override val name = "Komga${if (suffix.isNotBlank()) " ($suffix)" else ""}"
+
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
     override val name = "Kavita (${preferences.getString(KavitaConstants.customSourceNamePref,suffix)})"
     override val lang = "all"
     override val supportsLatest = true
-    // val apiUrl by lazy { getPrefApiUrl() } // Base URL is the API address of the Kavita Server. Should end with /api
     val apiUrl by lazy { getPrefApiUrl() }
     override val baseUrl by lazy { getPrefBaseUrl() }
     private val address by lazy { getPrefAddress() } // Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
     private var jwtToken = "" // * JWT Token for authentication with the server. Stored in memory.
-    private val LOG_TAG = "extension.all.kavita${preferences.getString(KavitaConstants.customSourceNamePref,suffix)}"
+    private val LOG_TAG = "extension.all.kavita_${preferences.getString(KavitaConstants.customSourceNamePref,suffix)!!.replace(' ','_')}"
     private var isLoged = false // Used to know if login was correct and not send login requests anymore
 
     private val json: Json by injectLazy()
@@ -99,7 +98,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         if (!isLoged) {
             doLogin()
         }
-
         return POST(
             "$apiUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
@@ -144,7 +142,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     if (filter.state != null) {
                         toFilter.sorting = filter.state!!.index + 1
                         toFilter.sorting_asc = filter.state!!.ascending
-//                        isFilterOn = true
+                        // disabled till the search api is stable
+                        // isFilterOn = true
                     }
                 }
                 is StatusFilterGroup -> {
@@ -164,7 +163,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     }
                 }
                 is UserRating -> {
-                    println(filter.state)
                     toFilter.userRating = filter.state
                 }
                 is TagFilterGroup -> {
@@ -318,7 +316,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override fun searchMangaParse(response: Response): MangasPage {
         if (isFilterOn) {
-            // isFilterOn = false
             return popularMangaParse(response)
         } else {
             if (response.request.url.toString().contains("api/series/all"))
@@ -346,7 +343,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         return client.newCall(GET("$apiUrl/series/metadata?seriesId=$serieId", headersBuilder().build()))
             .asObservableSuccess()
             .map { response ->
-                Log.v(LOG_TAG, "fetchMangaDetails response body: ```${response.peekBody(Long.MAX_VALUE).string()}```")
+                Log.d(LOG_TAG, "fetchMangaDetails response body: ```${response.peekBody(Long.MAX_VALUE).string()}```")
                 mangaDetailsParse(response).apply { initialized = true }
             }
     }
@@ -614,8 +611,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         Filter.Group<TranslatorPeopleFilter>("Translator", peoples)
 
     override fun getFilterList(): FilterList {
-        // fetchMetadataFiltering()
-
         val toggledFilters = getToggledFilters()
 
         val filters = try {
@@ -1018,12 +1013,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
         Log.v(LOG_TAG, "Performing Authentication...")
     }
-
-    /*catch (e:Exception)
-    {
-        Log.e(LOG_TAG, "Something went wrong while loging. Exception: $e")
-        throw IOException("Login incorrect. Please, send logs to the extension developers in the kavita discord")
-    }*/
 
     init {
         if (apiUrl.isNotBlank()) {

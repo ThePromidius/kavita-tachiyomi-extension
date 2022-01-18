@@ -632,7 +632,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     SortFilter(sortableList.map { it.first }.toTypedArray())
                 )
             }
-            if (genresListMeta.isNotEmpty() and toggledFilters.contains("SRead Status")) {
+            if (toggledFilters.contains("Read Status")) {
                 filtersLoaded.add(
                     StatusFilterGroup(
                         listOf(

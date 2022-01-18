@@ -60,9 +60,7 @@ import java.net.URLEncoder
 import java.security.MessageDigest
 
 class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
-//    val customName = if (getPrefSourceName().isNotBlank()) { "(${getPrefSourceName()})" } else {
-//        if (suffix.isNotBlank()) { "($suffix)" } else { "" }
-//    }
+
     override val id by lazy {
         val key = "${"kavita_$suffix"}/all/$versionId"
         val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
@@ -873,9 +871,11 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
         val opdsAddressPref = screen.editTextPreference(
             ADDRESS_TITLE,
+            "OPDS url",
             "",
             "The OPDS url copied from User Settings. This should include address and the api key on end."
         )
+
         val enabledFiltersPref = MultiSelectListPreference(screen.context).apply {
             key = KavitaConstants.toggledFiltersPref
             title = "Default filters shown"
@@ -892,7 +892,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         }
         val customSourceNamePref = EditTextPreference(screen.context).apply {
             key = KavitaConstants.customSourceNamePref
-            title = "Name of the source shown in sources tab"
+            title = "Displayed name for source"
             summary = "Here you can change this source name.\n" +
                 "You can write a descriptive name to identify this opds URL"
             setOnPreferenceChangeListener { _, newValue ->
@@ -902,19 +902,21 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             }
         }
 
+
+        screen.addPreference(customSourceNamePref)
         screen.addPreference(opdsAddressPref)
         screen.addPreference(enabledFiltersPref)
-        screen.addPreference(customSourceNamePref)
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(
+        preKey: String,
         title: String,
         default: String,
         summary: String,
         isPassword: Boolean = false
     ): EditTextPreference {
         return androidx.preference.EditTextPreference(context).apply {
-            key = title
+            key = preKey
             this.title = title
             val input = preferences.getString(title, null)
             this.summary = if (input == null || input.isEmpty()) summary else input

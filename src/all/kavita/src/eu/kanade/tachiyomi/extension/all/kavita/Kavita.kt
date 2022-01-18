@@ -526,7 +526,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         )
 
     private class SortFilter(sortables: Array<String>) : Filter.Sort("Sort by", sortables, Selection(0, true))
-    private class SortFilter_ascending(sortables: Array<String>) : Filter.Sort("Sort by", sortables, Selection(0, true))
 
     val sortableList = listOf(
         Pair("Sort name", 1),

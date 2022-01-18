@@ -104,10 +104,15 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val result = response.parseAs<List<SeriesDto>>()
-        series = result
-        val mangaList = result.map { item -> helper.createSeriesDto(item, apiUrl) }
-        return MangasPage(mangaList, helper.hasNextPage(response))
+        try {
+            val result = response.parseAs<List<SeriesDto>>()
+            series = result
+            val mangaList = result.map { item -> helper.createSeriesDto(item, apiUrl) }
+            return MangasPage(mangaList, helper.hasNextPage(response))
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Possible outdated kavita", e)
+            throw IOException("Please check your kavita version.\nv0.5+ is required for the extension to work properly")
+        }
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
@@ -902,7 +907,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             }
         }
 
-
         screen.addPreference(customSourceNamePref)
         screen.addPreference(opdsAddressPref)
         screen.addPreference(enabledFiltersPref)
@@ -974,7 +978,11 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val baseUrlSetup = tokens[0].replace("\n", "\\n")
 
         if (!baseUrlSetup.startsWith("http")) {
-            throw Exception("""Url does not start with "http/s" but with ${baseUrlSetup.split("://")[0]} """)
+            try {
+                throw Exception("""Url does not start with "http/s" but with ${baseUrlSetup.split("://")[0]} """)
+            } catch (e: Exception) {
+                throw Exception("""Malformed Url: $baseUrlSetup""")
+            }
         }
         preferences.edit().putString("BASEURL", baseUrlSetup).commit()
         preferences.edit().putString("APIKEY", apiKey).commit()

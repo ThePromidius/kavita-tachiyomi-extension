@@ -39,8 +39,6 @@ data class SeriesDto(
     val thumbnail_url: String? = "",
     val localizedName: String? = "",
     val sortName: String? = "",
-
-    // deprecated: val summary: String? = "",
     val pages: Int,
     val coverImageLocked: Boolean = true,
     val pagesRead: Int,

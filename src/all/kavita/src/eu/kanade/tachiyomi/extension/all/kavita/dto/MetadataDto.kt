@@ -24,7 +24,6 @@ data class MetadataPubStatus(
 data class MetadataTag(
     val id: Int,
     val title: String,
-//    val role: Int
 )
 @Serializable
 data class MetadataAgeRatings(

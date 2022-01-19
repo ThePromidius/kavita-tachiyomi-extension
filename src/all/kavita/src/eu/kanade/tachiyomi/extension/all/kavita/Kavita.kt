@@ -912,6 +912,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     "Restart Tachiyomi to apply new setting.",
                     Toast.LENGTH_LONG
                 ).show()
+                Log.v(LOG_TAG, "[Preferences] Successfully modified custom source name: $newValue")
                 res
             }
         }
@@ -951,6 +952,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                         Toast.LENGTH_LONG
                     ).show()
                     setupLogin(newValue)
+                    Log.v(LOG_TAG, "[Preferences] Successfully modified OPDS URL")
                     res
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -964,9 +966,8 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
     private fun getPrefApiUrl(): String = preferences.getString("APIURL", "")!!
     private fun getPrefKey(key: String): String = preferences.getString(key, "")!!
-
     private fun getToggledFilters() = preferences.getStringSet(KavitaConstants.toggledFiltersPref, KavitaConstants.defaultFilterPrefEntries)!!
-//    private fun getPrefSourceName(): String = preferences.getString("customPrefKey$suffix", "0")!!
+
     // We strip the last slash since we will append it above
     private fun getPrefAddress(): String {
         var path = preferences.getString(ADDRESS_TITLE, "")!!
@@ -1039,20 +1040,17 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     init {
         if (apiUrl.isNotBlank()) {
             Single.fromCallable {
-
                 // Login
                 var loginSuccesful = false
                 try {
                     doLogin()
                     loginSuccesful = true
-//                    Log.v(LOG_TAG, "Sucessfully logged on init")
                 } catch (e: LoginErrorException) {
                     Log.e(LOG_TAG, "Init login failed: $e")
                 }
-
                 if (loginSuccesful) { // doing this check to not clutter LOGS
                     // Genres
-                    Log.v(LOG_TAG, "[Filter] Fetchingfilters ")
+                    Log.v(LOG_TAG, "[Filter] Fetching filters ")
                     try {
                         client.newCall(GET("$apiUrl/Metadata/genres", headersBuilder().build()))
                             .execute().use { response ->
@@ -1154,11 +1152,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                 }
                             }
                     } catch (e: Exception) {
-                        Log.e(
-                            LOG_TAG,
-                            "[Filter] Error loading collectionsListMeta for collectionsListMeta",
-                            e
-                        )
+                        Log.e(LOG_TAG, "[Filter] Error loading collectionsListMeta for collectionsListMeta", e)
                     }
                     // languagesListMeta
                     try {
@@ -1185,11 +1179,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                 }
                             }
                     } catch (e: Exception) {
-                        Log.e(
-                            LOG_TAG,
-                            "[Filter] Error loading languagesListMeta for languagesListMeta",
-                            e
-                        )
+                        Log.e(LOG_TAG, "[Filter] Error loading languagesListMeta for languagesListMeta", e)
                     }
                     // libraries
                     try {

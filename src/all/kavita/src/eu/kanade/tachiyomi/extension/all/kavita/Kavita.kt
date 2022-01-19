@@ -73,7 +73,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     override val name = "Kavita (${preferences.getString(KavitaConstants.customSourceNamePref,suffix)})"
     override val lang = "all"
     override val supportsLatest = true
-    val apiUrl by lazy { getPrefApiUrl() }
+    private val apiUrl by lazy { getPrefApiUrl() }
     override val baseUrl by lazy { getPrefBaseUrl() }
     private val address by lazy { getPrefAddress() } // Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
     private var jwtToken = "" // * JWT Token for authentication with the server. Stored in memory.
@@ -806,7 +806,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             .add("Content-Type", "application/json")
             .add("Authorization", "Bearer $jwtToken")
     }
-    fun setupLoginHeaders(): Headers.Builder {
+    private fun setupLoginHeaders(): Headers.Builder {
         return Headers.Builder()
             .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")
             .add("Content-Type", "application/json")
@@ -905,28 +905,21 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             summary = "Here you can change this source name.\n" +
                 "You can write a descriptive name to identify this opds URL"
             setOnPreferenceChangeListener { _, newValue ->
-                preferences.edit()
+                val res = preferences.edit()
                     .putString(KavitaConstants.customSourceNamePref, newValue.toString())
                     .commit()
+                Toast.makeText(
+                    screen.context,
+                    "Restart Tachiyomi to apply new setting.",
+                    Toast.LENGTH_LONG
+                ).show()
+                res
             }
         }
-        val resetFiltersPref = androidx.preference.SwitchPreferenceCompat(screen.context).apply {
-            title = "Testing button"
-            summary = "Trying to create a debug button"
 
-            setOnPreferenceChangeListener { _, newValue ->
-                preferences.edit()
-                    .remove(KavitaConstants.toggledFiltersPref)
-                    .commit()
-                false
-            }
-        }
         screen.addPreference(customSourceNamePref)
         screen.addPreference(opdsAddressPref)
         screen.addPreference(enabledFiltersPref)
-
-        // Debug clear preference filter
-        // screen.addPreference(resetFiltersPref)
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(

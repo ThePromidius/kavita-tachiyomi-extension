@@ -53,7 +53,7 @@ data class SeriesDto(
 @Serializable
 data class SeriesMetadataDto(
     val id: Int,
-    val summary: String,
+    val summary: String? = "",
     val writers: List<Person> = emptyList(),
     val coverArtists: List<Person> = emptyList(),
     val genres: List<Genres> = emptyList(),

@@ -1019,8 +1019,13 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         )
         client.newCall(request).execute().use {
             if (it.code == 200) {
-                jwtToken = it.parseAs<AuthenticationDto>().token
-                isLoged = true
+                try {
+                    jwtToken = it.parseAs<AuthenticationDto>().token
+                    isLoged = true
+                } catch (e: Exception) {
+                    Log.e(LOG_TAG, "Possible outdated kavita", e)
+                    throw IOException("Please check your kavita version.\nv0.5+ is required for the extension to work properly")
+                }
             } else {
                 Log.e(LOG_TAG, "[LOGIN] login failed. Authentication was not successful -> Code: ${it.code}.Response message: ${it.message} Response body: ${it.body!!}.")
                 throw LoginErrorException("[LOGIN] login failed. Authentication was not successful")

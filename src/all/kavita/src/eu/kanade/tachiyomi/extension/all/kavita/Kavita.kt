@@ -56,7 +56,6 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.io.IOException
-import java.net.URLEncoder
 import java.security.MessageDigest
 
 class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
@@ -951,6 +950,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                         "Restart Tachiyomi to apply new setting.",
                         Toast.LENGTH_LONG
                     ).show()
+                    setupLogin(newValue)
                     res
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -984,8 +984,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     /**
      * LOGIN
      **/
-    private fun setupLogin() {
-        val tokens = address.split("/api/opds/")
+    private fun setupLogin(addressFromPreference: String = "") {
+        Log.v(LOG_TAG, "[Setup Login] Starting setup")
+        val validaddress = if (address.isEmpty()) addressFromPreference else address
+        val tokens = validaddress.split("/api/opds/")
         val apiKey = tokens[1]
         val baseUrlSetup = tokens[0].replace("\n", "\\n")
 
@@ -999,9 +1001,11 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         preferences.edit().putString("BASEURL", baseUrlSetup).commit()
         preferences.edit().putString("APIKEY", apiKey).commit()
         preferences.edit().putString("APIURL", "$baseUrlSetup/api").commit()
+        Log.v(LOG_TAG, "[Setup Login] Setup successful")
     }
 
     private fun doLogin() {
+
         if (address.isEmpty()) {
             Log.e(LOG_TAG, "OPDS URL is empty or null")
             throw IOException("You must setup the Address to communicate with Kavita")
@@ -1010,11 +1014,9 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             throw IOException("Address is not correct. Please copy from User settings -> OPDS Url")
         }
         if (jwtToken.isEmpty()) setupLogin()
-
-        Log.v(LOG_TAG, "Performing Authentication...")
-
+        Log.v(LOG_TAG, "[Login] Starting login")
         val request = POST(
-            "$apiUrl/Plugin/authenticate?apiKey=${getPrefKey("APIKEY")}&pluginName=${URLEncoder.encode("Tachiyomi-Kavita","utf-8")}",
+            "$apiUrl/Plugin/authenticate?apiKey=${getPrefKey("APIKEY")}&pluginName=Tachiyomi-Kavita",
             setupLoginHeaders().build(), "{}".toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         )
         client.newCall(request).execute().use {
@@ -1031,6 +1033,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 throw LoginErrorException("[LOGIN] login failed. Authentication was not successful")
             }
         }
+        Log.v(LOG_TAG, "[Login] Login successful")
     }
 
     init {
@@ -1042,13 +1045,14 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 try {
                     doLogin()
                     loginSuccesful = true
-                    Log.v(LOG_TAG, "Sucessfully logged on init")
+//                    Log.v(LOG_TAG, "Sucessfully logged on init")
                 } catch (e: LoginErrorException) {
                     Log.e(LOG_TAG, "Init login failed: $e")
                 }
 
                 if (loginSuccesful) { // doing this check to not clutter LOGS
                     // Genres
+                    Log.v(LOG_TAG, "[Filter] Fetchingfilters ")
                     try {
                         client.newCall(GET("$apiUrl/Metadata/genres", headersBuilder().build()))
                             .execute().use { response ->
@@ -1059,17 +1063,17 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                     } else {
                                         Log.e(
                                             LOG_TAG,
-                                            "error while decoding JSON for genres filter: response body is null. Response code: ${response.code}"
+                                            "[Filter] Error decoding JSON for genres filter: response body is null. Response code: ${response.code}"
                                         )
                                         emptyList()
                                     }
                                 } catch (e: Exception) {
-                                    Log.e(LOG_TAG, "error while decoding JSON for genres filter -> ${response.body!!}", e)
+                                    Log.e(LOG_TAG, "[Filter] Error decoding JSON for genres filter -> ${response.body!!}", e)
                                     emptyList()
                                 }
                             }
                     } catch (e: Exception) {
-                        Log.e(LOG_TAG, "error while loading genres for filters", e)
+                        Log.e(LOG_TAG, "[Filter] Error loading genres for filters", e)
                     }
                     // tagsListMeta
                     try {
@@ -1082,17 +1086,17 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                     } else {
                                         Log.e(
                                             LOG_TAG,
-                                            "error while decoding JSON for tagsList filter: response body is null. Response code: ${response.code}"
+                                            "[Filter] Error decoding JSON for tagsList filter: response body is null. Response code: ${response.code}"
                                         )
                                         emptyList()
                                     }
                                 } catch (e: Exception) {
-                                    Log.e(LOG_TAG, "error while decoding JSON for tagsList filter", e)
+                                    Log.e(LOG_TAG, "[Filter] Error decoding JSON for tagsList filter", e)
                                     emptyList()
                                 }
                             }
                     } catch (e: Exception) {
-                        Log.e(LOG_TAG, "error while loading tagsList for filters", e)
+                        Log.e(LOG_TAG, "[Filter] Error loading tagsList for filters", e)
                     }
                     // age-ratings
                     try {
@@ -1109,21 +1113,21 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                 } else {
                                     Log.e(
                                         LOG_TAG,
-                                        "error while decoding JSON for age-ratings filter: response body is null. Response code: ${response.code}"
+                                        "[Filter] Error decoding JSON for age-ratings filter: response body is null. Response code: ${response.code}"
                                     )
                                     emptyList()
                                 }
                             } catch (e: Exception) {
                                 Log.e(
                                     LOG_TAG,
-                                    "error while decoding JSON for age-ratings filter",
+                                    "[Filter] Error decoding JSON for age-ratings filter",
                                     e
                                 )
                                 emptyList()
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e(LOG_TAG, "error while loading age-ratings for age-ratings", e)
+                        Log.e(LOG_TAG, "[Filter] Error loading age-ratings for age-ratings", e)
                     }
                     // collectionsListMeta
                     try {
@@ -1136,14 +1140,14 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                     } else {
                                         Log.e(
                                             LOG_TAG,
-                                            "error while decoding JSON for collectionsListMeta filter: response body is null. Response code: ${response.code}"
+                                            "[Filter] Error decoding JSON for collectionsListMeta filter: response body is null. Response code: ${response.code}"
                                         )
                                         emptyList()
                                     }
                                 } catch (e: Exception) {
                                     Log.e(
                                         LOG_TAG,
-                                        "error while decoding JSON for collectionsListMeta filter",
+                                        "[Filter] Error decoding JSON for collectionsListMeta filter",
                                         e
                                     )
                                     emptyList()
@@ -1152,7 +1156,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     } catch (e: Exception) {
                         Log.e(
                             LOG_TAG,
-                            "error while loading collectionsListMeta for collectionsListMeta",
+                            "[Filter] Error loading collectionsListMeta for collectionsListMeta",
                             e
                         )
                     }
@@ -1167,14 +1171,14 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                     } else {
                                         Log.e(
                                             LOG_TAG,
-                                            "error while decoding JSON for languagesListMeta filter: response body is null. Response code: ${response.code}"
+                                            "[Filter] Error decoding JSON for languagesListMeta filter: response body is null. Response code: ${response.code}"
                                         )
                                         emptyList()
                                     }
                                 } catch (e: Exception) {
                                     Log.e(
                                         LOG_TAG,
-                                        "error while decoding JSON for languagesListMeta filter",
+                                        "[Filter] Error decoding JSON for languagesListMeta filter",
                                         e
                                     )
                                     emptyList()
@@ -1183,7 +1187,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     } catch (e: Exception) {
                         Log.e(
                             LOG_TAG,
-                            "error while loading languagesListMeta for languagesListMeta",
+                            "[Filter] Error loading languagesListMeta for languagesListMeta",
                             e
                         )
                     }
@@ -1198,21 +1202,21 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                     } else {
                                         Log.e(
                                             LOG_TAG,
-                                            "error while decoding JSON for libraries filter: response body is null. Response code: ${response.code}"
+                                            "[Filter] Error decoding JSON for libraries filter: response body is null. Response code: ${response.code}"
                                         )
                                         emptyList()
                                     }
                                 } catch (e: Exception) {
                                     Log.e(
                                         LOG_TAG,
-                                        "error while decoding JSON for libraries filter",
+                                        "[Filter] Error decoding JSON for libraries filter",
                                         e
                                     )
                                     emptyList()
                                 }
                             }
                     } catch (e: Exception) {
-                        Log.e(LOG_TAG, "error while loading libraries for languagesListMeta", e)
+                        Log.e(LOG_TAG, "[Filter] Error loading libraries for languagesListMeta", e)
                     }
                     // peopleListMeta
                     try {
@@ -1239,7 +1243,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                 }
                             }
                     } catch (e: Exception) {
-                        Log.e(LOG_TAG, "error while loading tagsList for peopleListMeta", e)
+                        Log.e(LOG_TAG, "[Filter] Error loading tagsList for peopleListMeta", e)
                     }
                     try {
                         client.newCall(GET("$apiUrl/Metadata/publication-status", headersBuilder().build()))
@@ -1265,10 +1269,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                                 }
                             }
                     } catch (e: Exception) {
-                        Log.e(LOG_TAG, "error while loading tagsList for peopleListMeta", e)
+                        Log.e(LOG_TAG, "[Filter] Error loading tagsList for peopleListMeta", e)
                     }
 
-                    Log.v(LOG_TAG, "Successfully loaded metadata tags from server")
+                    Log.v(LOG_TAG, "[Filter] Successfully loaded metadata tags from server")
                 }
                 Log.v(LOG_TAG, "Successfully ended init")
             }

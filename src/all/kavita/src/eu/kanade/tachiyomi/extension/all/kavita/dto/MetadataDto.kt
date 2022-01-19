@@ -21,10 +21,10 @@ data class MetadataPubStatus(
     val title: String
 )
 @Serializable
-data class MetadataTags(
+data class MetadataTag(
     val id: Int,
-    val name: String,
-    val role: Int
+    val title: String,
+//    val role: Int
 )
 @Serializable
 data class MetadataAgeRatings(

@@ -65,7 +65,6 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
         (0..7).map { bytes[it].toLong() and 0xff shl 8 * (7 - it) }.reduce(Long::or) and Long.MAX_VALUE
     }
-
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
@@ -334,6 +333,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         thumbnail_url = "$apiUrl/Image/series-cover?seriesId=${obj.seriesId}"
         description = "None"
         url = "${obj.seriesId}"
+        url = "$apiUrl/Series/${obj.id}"
     }
 
     /**

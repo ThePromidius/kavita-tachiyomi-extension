@@ -44,6 +44,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -58,7 +59,7 @@ import uy.kohesive.injekt.injectLazy
 import java.io.IOException
 import java.security.MessageDigest
 
-class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
+class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override val id by lazy {
         val key = "${"kavita_$suffix"}/all/$versionId"
@@ -332,7 +333,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         title = obj.name
         thumbnail_url = "$apiUrl/Image/series-cover?seriesId=${obj.seriesId}"
         description = "None"
-        url = "$apiUrl/Series/${obj.seriesId}"
+        url = "$apiUrl/Series/${obj.seriesId}?sourceId=$suffix"
     }
 
     /**
@@ -363,9 +364,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val result = response.parseAs<SeriesMetadataDto>()
 
         val existingSeries = series.find { dto -> dto.id == result.seriesId }
-
+        Log.d("[Kavita]", "old manga url:")
         if (existingSeries != null) {
             val manga = helper.createSeriesDto(existingSeries, apiUrl)
+            manga.url = "$apiUrl/Series/${result.seriesId}"
             manga.artist = result.coverArtists.joinToString { it.name }
             manga.description = result.summary
             manga.author = result.writers.joinToString { it.name }
@@ -797,6 +799,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     class LoginErrorException(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
         constructor(cause: Throwable) : this(null, cause)
     }
+    class OpdsurlExistsInPref(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
+        constructor(cause: Throwable) : this(null, cause)
+    }
+
     override fun headersBuilder(): Headers.Builder {
         if (jwtToken.isEmpty()) throw LoginErrorException("403 Error\nOPDS address got modified or is incorrect")
         return Headers.Builder()
@@ -944,6 +950,18 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             }
             setOnPreferenceChangeListener { _, newValue ->
                 try {
+                    val opdsUrlInPref = pdsUrlInPreferences(newValue.toString()) // We don't allow hot have multiple sources with same ip or domain
+                    if (opdsUrlInPref.isNotEmpty()) {
+                        // TODO("Add option to allow multiple sources with same url at the cost of tracking")
+                        preferences.edit().putString(title, "").commit()
+                        Toast.makeText(
+                            context,
+                            "URL exists in a different source -> $opdsUrlInPref",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        throw OpdsurlExistsInPref("Url exists in a different source -> $opdsUrlInPref")
+                    }
+
                     val res = preferences.edit().putString(title, newValue as String).commit()
                     Toast.makeText(
                         context,
@@ -953,8 +971,11 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     setupLogin(newValue)
                     Log.v(LOG_TAG, "[Preferences] Successfully modified OPDS URL")
                     res
+                } catch (e: OpdsurlExistsInPref) {
+                    Log.e(LOG_TAG, "Url exists in a different sourcce")
+                    false
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    Log.e(LOG_TAG, "Unrecognised error", e)
                     false
                 }
             }
@@ -984,6 +1005,34 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     /**
      * LOGIN
      **/
+
+    private fun pdsUrlInPreferences(url: String): String {
+        fun getCleanedApiUrl(url: String): String = "${url.split("/api/").first()}/api"
+        /**Used to check if a url already exists in preference in any source
+         * This is a limitation needed for tracking.**/
+        for (sourceId in 1..3) { // There's 3 sources so 3 preferences to check
+            val sourceSuffixID by lazy {
+                val key = "${"kavita_$sourceId"}/all/1" // Hardcoded versionID to 1
+                val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
+                (0..7).map { bytes[it].toLong() and 0xff shl 8 * (7 - it) }
+                    .reduce(Long::or) and Long.MAX_VALUE
+            }
+            val preferences: SharedPreferences by lazy {
+                Injekt.get<Application>().getSharedPreferences("source_$sourceSuffixID", 0x0000)
+            }
+            val prefApiUrl = preferences.getString("APIURL", "")!!
+
+            if (prefApiUrl.isNotEmpty()) {
+                if (prefApiUrl == getCleanedApiUrl(url)) {
+                    if (sourceId.toString() != suffix) {
+                        return preferences.getString(KavitaConstants.customSourceNamePref, sourceId.toString())!!
+                    }
+                }
+            }
+        }
+        return ""
+    }
+
     private fun setupLogin(addressFromPreference: String = "") {
         Log.v(LOG_TAG, "[Setup Login] Starting setup")
         val validaddress = if (address.isEmpty()) addressFromPreference else address
@@ -991,13 +1040,11 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val apiKey = tokens[1]
         val baseUrlSetup = tokens[0].replace("\n", "\\n")
 
-        if (!baseUrlSetup.startsWith("http")) {
-            try {
-                throw Exception("""Url does not start with "http/s" but with ${baseUrlSetup.split("://")[0]} """)
-            } catch (e: Exception) {
-                throw Exception("""Malformed Url: $baseUrlSetup""")
-            }
+        if (baseUrlSetup.toHttpUrlOrNull() == null) {
+            Log.e(LOG_TAG, "Invalid URL $baseUrlSetup",)
+            throw Exception("""Invalid URL: $baseUrlSetup""")
         }
+
         preferences.edit().putString("BASEURL", baseUrlSetup).commit()
         preferences.edit().putString("APIKEY", apiKey).commit()
         preferences.edit().putString("APIURL", "$baseUrlSetup/api").commit()

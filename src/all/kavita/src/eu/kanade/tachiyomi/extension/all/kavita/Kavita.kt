@@ -58,6 +58,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.io.IOException
+import java.net.ConnectException
 import java.security.MessageDigest
 
 class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource() {
@@ -77,15 +78,18 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
     override val baseUrl by lazy { getPrefBaseUrl() }
     private val address by lazy { getPrefAddress() } // Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
     private var jwtToken = "" // * JWT Token for authentication with the server. Stored in memory.
-    private val LOG_TAG = "extension.all.kavita_${preferences.getString(KavitaConstants.customSourceNamePref,suffix)!!.replace(' ','_')}"
+    private val LOG_TAG = """extension.all.kavita_${"[$suffix]_" + preferences.getString(KavitaConstants.customSourceNamePref,"[$suffix]")!!.replace(' ','_')}"""
     private var isLoged = false // Used to know if login was correct and not send login requests anymore
 
     private val json: Json by injectLazy()
     private val helper = KavitaHelper()
     private inline fun <reified T> Response.parseAs(): T =
         use {
-            if (it.peekBody(Long.MAX_VALUE).string().orEmpty().isEmpty()) {
-                throw EmptyRequestBody("The body of the response is empty")
+            if (it.peekBody(Long.MAX_VALUE).string().isEmpty()) {
+                throw EmptyRequestBody(
+                    "Body of the response is empty. RequestUrl=${it.request.url}\nPlease check your kavita instance is up to date",
+                    Throwable("Empty Body of the response is empty. RequestUrl=${it.request.url}\n Please check your kavita instance is up to date")
+                )
             }
             json.decodeFromString(it.body?.string().orEmpty())
         }
@@ -809,6 +813,9 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
     class EmptyRequestBody(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
         constructor(cause: Throwable) : this(null, cause)
     }
+    class LoadingFilterFailed(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
+        constructor(cause: Throwable) : this(null, cause)
+    }
 
     override fun headersBuilder(): Headers.Builder {
         if (jwtToken.isEmpty()) throw LoginErrorException("401 Error\nOPDS address got modified or is incorrect")
@@ -928,7 +935,6 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                 res
             }
         }
-
         screen.addPreference(customSourceNamePref)
         screen.addPreference(opdsAddressPref)
         screen.addPreference(enabledFiltersPref)
@@ -960,7 +966,8 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                     val opdsUrlInPref = opdsUrlInPreferences(newValue.toString()) // We don't allow hot have multiple sources with same ip or domain
                     if (opdsUrlInPref.isNotEmpty()) {
                         // TODO("Add option to allow multiple sources with same url at the cost of tracking")
-                        preferences.edit().putString(title, "").commit()
+                        preferences.edit().putString(title, "").apply()
+
                         Toast.makeText(
                             context,
                             "URL exists in a different source -> $opdsUrlInPref",
@@ -1051,10 +1058,9 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             Log.e(LOG_TAG, "Invalid URL $baseUrlSetup",)
             throw Exception("""Invalid URL: $baseUrlSetup""")
         }
-
-        preferences.edit().putString("BASEURL", baseUrlSetup).commit()
-        preferences.edit().putString("APIKEY", apiKey).commit()
-        preferences.edit().putString("APIURL", "$baseUrlSetup/api").commit()
+        preferences.edit().putString("BASEURL", baseUrlSetup).apply()
+        preferences.edit().putString("APIKEY", apiKey).apply()
+        preferences.edit().putString("APIURL", "$baseUrlSetup/api").apply()
         Log.v(LOG_TAG, "[Setup Login] Setup successful")
     }
 
@@ -1074,6 +1080,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             setupLoginHeaders().build(), "{}".toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         )
         client.newCall(request).execute().use {
+            val peekbody = it.peekBody(Long.MAX_VALUE).toString()
             if (it.code == 200) {
                 try {
                     jwtToken = it.parseAs<AuthenticationDto>().token
@@ -1099,87 +1106,67 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
         if (apiUrl.isNotBlank()) {
             Single.fromCallable {
                 // Login
-                var loginSuccesful = false
-                try {
-                    doLogin()
-                    loginSuccesful = true
-                } catch (e: LoginErrorException) {
-                    Log.e(LOG_TAG, "Init login failed: $e")
+                doLogin()
+                try { // Get current version
+                    val requestUrl = "$apiUrl/Server/server-info"
+                    val serverInfoDto = client.newCall(GET(requestUrl, headersBuilder().build()))
+                        .execute()
+                        .parseAs<ServerInfoDto>()
+                    Log.e(
+                        LOG_TAG,
+                        "Extension version: code=${BuildConfig.VERSION_CODE}  name=${BuildConfig.VERSION_NAME}" +
+                            " - - Kavita version: ${serverInfoDto.kavitaVersion}"
+                    ) // this is not a real error. Using this so it gets printed in dump logs if there's any error
+                } catch (e: EmptyRequestBody) {
+                    Log.e(LOG_TAG, "Extension version: code=${BuildConfig.VERSION_CODE} - name=${BuildConfig.VERSION_NAME}")
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(LOG_TAG, "Tachiyomi version: code=${BuildConfig.VERSION_CODE} - name=${BuildConfig.VERSION_NAME}", e)
+                    throw e
                 }
-                if (loginSuccesful) { // doing this check to not clutter LOGS
-                    try { // Get current version
-                        val requestUrl = "$apiUrl/Server/server-info"
-                        val serverInfoDto = client.newCall(GET(requestUrl, headersBuilder().build()))
-                            .execute()
-                            .parseAs<ServerInfoDto>()
-                        Log.e(
-                            LOG_TAG,
-                            "Extension version: code=${BuildConfig.VERSION_CODE}  name=${BuildConfig.VERSION_NAME}" +
-                                " - - Kavita version: ${serverInfoDto.kavitaVersion}"
-                        ) // this is not a real error. Using this so it gets printed in dump logs if there's any error
-                    } catch (e: EmptyRequestBody) {
-                        Log.e(LOG_TAG, "Body of the request is empty. Tachiyomi version: code=${BuildConfig.VERSION_CODE} - name=${BuildConfig.VERSION_NAME}")
-                        throw e
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "exception fetching kavita version - Tachiyomi version: code=${BuildConfig.VERSION_CODE} - name=${BuildConfig.VERSION_NAME}", e)
-                        throw e
-                    }
-
+                try { // Load Filters
                     // Genres
                     Log.v(LOG_TAG, "[Filter] Fetching filters ")
-                    try {
-                        client.newCall(GET("$apiUrl/Metadata/genres", headersBuilder().build()))
-                            .execute().use { response ->
-                                genresListMeta = try {
-                                    val responseBody = response.body
-                                    if (responseBody != null) {
-                                        responseBody.use { json.decodeFromString(it.string()) }
-                                    } else {
-                                        Log.e(
-                                            LOG_TAG,
-                                            "[Filter] Error decoding JSON for genres filter: response body is null. Response code: ${response.code}"
-                                        )
-                                        emptyList()
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(LOG_TAG, "[Filter] Error decoding JSON for genres filter -> ${response.body!!}", e)
+                    client.newCall(GET("$apiUrl/Metadata/genres", headersBuilder().build()))
+                        .execute().use { response ->
+                            genresListMeta = try {
+                                val responseBody = response.body
+                                if (responseBody != null) {
+                                    responseBody.use { json.decodeFromString(it.string()) }
+                                } else {
+                                    Log.e(
+                                        LOG_TAG,
+                                        "[Filter] Error decoding JSON for genres filter: response body is null. Response code: ${response.code}"
+                                    )
                                     emptyList()
                                 }
+                            } catch (e: Exception) {
+                                Log.e(LOG_TAG, "[Filter] Error decoding JSON for genres filter -> ${response.body!!}", e)
+                                emptyList()
                             }
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "[Filter] Error loading genres for filters", e)
-                    }
+                        }
                     // tagsListMeta
-                    try {
-                        client.newCall(GET("$apiUrl/Metadata/tags", headersBuilder().build()))
-                            .execute().use { response ->
-                                tagsListMeta = try {
-                                    val responseBody = response.body
-                                    if (responseBody != null) {
-                                        responseBody.use { json.decodeFromString(it.string()) }
-                                    } else {
-                                        Log.e(
-                                            LOG_TAG,
-                                            "[Filter] Error decoding JSON for tagsList filter: response body is null. Response code: ${response.code}"
-                                        )
-                                        emptyList()
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(LOG_TAG, "[Filter] Error decoding JSON for tagsList filter", e)
+                    client.newCall(GET("$apiUrl/Metadata/tags", headersBuilder().build()))
+                        .execute().use { response ->
+                            tagsListMeta = try {
+                                val responseBody = response.body
+                                if (responseBody != null) {
+                                    responseBody.use { json.decodeFromString(it.string()) }
+                                } else {
+                                    Log.e(
+                                        LOG_TAG,
+                                        "[Filter] Error decoding JSON for tagsList filter: response body is null. Response code: ${response.code}"
+                                    )
                                     emptyList()
                                 }
+                            } catch (e: Exception) {
+                                Log.e(LOG_TAG, "[Filter] Error decoding JSON for tagsList filter", e)
+                                emptyList()
                             }
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "[Filter] Error loading tagsList for filters", e)
-                    }
+                        }
                     // age-ratings
-                    try {
-                        client.newCall(
-                            GET(
-                                "$apiUrl/Metadata/age-ratings",
-                                headersBuilder().build()
-                            )
-                        ).execute().use { response ->
+                    client.newCall(GET("$apiUrl/Metadata/age-ratings", headersBuilder().build()))
+                        .execute().use { response ->
                             ageRatingsListMeta = try {
                                 val responseBody = response.body
                                 if (responseBody != null) {
@@ -1200,153 +1187,141 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                                 emptyList()
                             }
                         }
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "[Filter] Error loading age-ratings for age-ratings", e)
-                    }
                     // collectionsListMeta
-                    try {
-                        client.newCall(GET("$apiUrl/Collection", headersBuilder().build()))
-                            .execute().use { response ->
-                                collectionsListMeta = try {
-                                    val responseBody = response.body
-                                    if (responseBody != null) {
-                                        responseBody.use { json.decodeFromString(it.string()) }
-                                    } else {
-                                        Log.e(
-                                            LOG_TAG,
-                                            "[Filter] Error decoding JSON for collectionsListMeta filter: response body is null. Response code: ${response.code}"
-                                        )
-                                        emptyList()
-                                    }
-                                } catch (e: Exception) {
+                    client.newCall(GET("$apiUrl/Collection", headersBuilder().build()))
+                        .execute().use { response ->
+                            collectionsListMeta = try {
+                                val responseBody = response.body
+                                if (responseBody != null) {
+                                    responseBody.use { json.decodeFromString(it.string()) }
+                                } else {
                                     Log.e(
                                         LOG_TAG,
-                                        "[Filter] Error decoding JSON for collectionsListMeta filter",
-                                        e
+                                        "[Filter] Error decoding JSON for collectionsListMeta filter: response body is null. Response code: ${response.code}"
                                     )
                                     emptyList()
                                 }
+                            } catch (e: Exception) {
+                                Log.e(
+                                    LOG_TAG,
+                                    "[Filter] Error decoding JSON for collectionsListMeta filter",
+                                    e
+                                )
+                                emptyList()
                             }
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "[Filter] Error loading collectionsListMeta for collectionsListMeta", e)
-                    }
+                        }
                     // languagesListMeta
-                    try {
-                        client.newCall(GET("$apiUrl/Metadata/languages", headersBuilder().build()))
-                            .execute().use { response ->
-                                languagesListMeta = try {
-                                    val responseBody = response.body
-                                    if (responseBody != null) {
-                                        responseBody.use { json.decodeFromString(it.string()) }
-                                    } else {
-                                        Log.e(
-                                            LOG_TAG,
-                                            "[Filter] Error decoding JSON for languagesListMeta filter: response body is null. Response code: ${response.code}"
-                                        )
-                                        emptyList()
-                                    }
-                                } catch (e: Exception) {
+                    client.newCall(GET("$apiUrl/Metadata/languages", headersBuilder().build()))
+                        .execute().use { response ->
+                            languagesListMeta = try {
+                                val responseBody = response.body
+                                if (responseBody != null) {
+                                    responseBody.use { json.decodeFromString(it.string()) }
+                                } else {
                                     Log.e(
                                         LOG_TAG,
-                                        "[Filter] Error decoding JSON for languagesListMeta filter",
-                                        e
+                                        "[Filter] Error decoding JSON for languagesListMeta filter: response body is null. Response code: ${response.code}"
                                     )
                                     emptyList()
                                 }
+                            } catch (e: Exception) {
+                                Log.e(
+                                    LOG_TAG,
+                                    "[Filter] Error decoding JSON for languagesListMeta filter",
+                                    e
+                                )
+                                emptyList()
                             }
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "[Filter] Error loading languagesListMeta for languagesListMeta", e)
-                    }
+                        }
                     // libraries
-                    try {
-                        client.newCall(GET("$apiUrl/Library", headersBuilder().build())).execute()
-                            .use { response ->
-                                libraryListMeta = try {
-                                    val responseBody = response.body
-                                    if (responseBody != null) {
-                                        responseBody.use { json.decodeFromString(it.string()) }
-                                    } else {
-                                        Log.e(
-                                            LOG_TAG,
-                                            "[Filter] Error decoding JSON for libraries filter: response body is null. Response code: ${response.code}"
-                                        )
-                                        emptyList()
-                                    }
-                                } catch (e: Exception) {
+                    client.newCall(GET("$apiUrl/Library", headersBuilder().build()))
+                        .execute().use { response ->
+                            libraryListMeta = try {
+                                val responseBody = response.body
+                                if (responseBody != null) {
+                                    responseBody.use { json.decodeFromString(it.string()) }
+                                } else {
                                     Log.e(
                                         LOG_TAG,
-                                        "[Filter] Error decoding JSON for libraries filter",
-                                        e
+                                        "[Filter] Error decoding JSON for libraries filter: response body is null. Response code: ${response.code}"
                                     )
                                     emptyList()
                                 }
+                            } catch (e: Exception) {
+                                Log.e(
+                                    LOG_TAG,
+                                    "[Filter] Error decoding JSON for libraries filter",
+                                    e
+                                )
+                                emptyList()
                             }
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "[Filter] Error loading libraries for languagesListMeta", e)
-                    }
+                        }
                     // peopleListMeta
-                    try {
-                        client.newCall(GET("$apiUrl/Metadata/people", headersBuilder().build()))
-                            .execute().use { response ->
-                                peopleListMeta = try {
-                                    val responseBody = response.body
-                                    if (responseBody != null) {
-                                        responseBody.use { json.decodeFromString(it.string()) }
-                                    } else {
-                                        Log.e(
-                                            LOG_TAG,
-                                            "error while decoding JSON for peopleListMeta filter: response body is null. Response code: ${response.code}"
-                                        )
-                                        emptyList()
-                                    }
-                                } catch (e: Exception) {
+                    client.newCall(GET("$apiUrl/Metadata/people", headersBuilder().build()))
+                        .execute().use { response ->
+                            peopleListMeta = try {
+                                val responseBody = response.body
+                                if (responseBody != null) {
+                                    responseBody.use { json.decodeFromString(it.string()) }
+                                } else {
                                     Log.e(
                                         LOG_TAG,
-                                        "error while decoding JSON for peopleListMeta filter",
-                                        e
+                                        "error while decoding JSON for peopleListMeta filter: response body is null. Response code: ${response.code}"
                                     )
                                     emptyList()
                                 }
+                            } catch (e: Exception) {
+                                Log.e(
+                                    LOG_TAG,
+                                    "error while decoding JSON for peopleListMeta filter",
+                                    e
+                                )
+                                emptyList()
                             }
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "[Filter] Error loading tagsList for peopleListMeta", e)
-                    }
-                    try {
-                        client.newCall(GET("$apiUrl/Metadata/publication-status", headersBuilder().build()))
-                            .execute().use { response ->
-                                pubStatusListMeta = try {
-                                    val responseBody = response.body
-                                    if (responseBody != null) {
-                                        responseBody.use { json.decodeFromString(it.string()) }
-                                    } else {
-                                        Log.e(
-                                            LOG_TAG,
-                                            "error while decoding JSON for publicationStatusListMeta filter: response body is null. Response code: ${response.code}"
-                                        )
-                                        emptyList()
-                                    }
-                                } catch (e: Exception) {
+                        }
+                    client.newCall(GET("$apiUrl/Metadata/publication-status", headersBuilder().build()))
+                        .execute().use { response ->
+                            pubStatusListMeta = try {
+                                val responseBody = response.body
+                                if (responseBody != null) {
+                                    responseBody.use { json.decodeFromString(it.string()) }
+                                } else {
                                     Log.e(
                                         LOG_TAG,
-                                        "error while decoding JSON for publicationStatusListMeta filter",
-                                        e
+                                        "error while decoding JSON for publicationStatusListMeta filter: response body is null. Response code: ${response.code}"
                                     )
                                     emptyList()
                                 }
+                            } catch (e: Exception) {
+                                Log.e(
+                                    LOG_TAG,
+                                    "error while decoding JSON for publicationStatusListMeta filter",
+                                    e
+                                )
+                                emptyList()
                             }
-                    } catch (e: Exception) {
-                        Log.e(LOG_TAG, "[Filter] Error loading tagsList for peopleListMeta", e)
-                    }
-
+                        }
                     Log.v(LOG_TAG, "[Filter] Successfully loaded metadata tags from server")
+                } catch (e: Exception) {
+                    throw LoadingFilterFailed("Failed Loading Filters", e.cause)
                 }
-                Log.v(LOG_TAG, "Successfully ended init")
             }
                 .subscribeOn(Schedulers.io())
                 .observeOn(Schedulers.io())
                 .subscribe(
                     {},
                     { tr ->
+                        /**
+                         * Avoid polluting logs with traces of exception
+                         * **/
+                        if (tr is EmptyRequestBody || tr is LoginErrorException) {
+                            Log.e(LOG_TAG, "error while doing initial calls\n${tr.cause}")
+                            return@subscribe
+                        }
+                        if (tr is ConnectException) { // avoid polluting logs with traces of exception
+                            Log.e(LOG_TAG, "Error while doing initial calls\n${tr.cause}")
+                            return@subscribe
+                        }
                         Log.e(LOG_TAG, "error while doing initial calls", tr)
                     }
                 )

@@ -19,7 +19,7 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("BeastScans", "https://beastscans.com", "en"),
         SingleLang("iiMANGA", "https://iimanga.com", "ar"),
         SingleLang("Magus Manga", "https://magusmanga.com", "ar"),
-        SingleLang("Kiryuu", "https://kiryuu.id", "id", overrideVersionCode = 4),
+        SingleLang("Kiryuu", "https://kiryuu.id", "id", overrideVersionCode = 5),
         SingleLang("KomikMama", "https://komikmama.net", "id"),
         SingleLang("MangaKita", "https://mangakita.net", "id", overrideVersionCode = 1),
         SingleLang("Gabut Scans", "https://gabutscans.com", "id"),
@@ -44,7 +44,7 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("Ace Scans", "https://acescans.xyz", "en", isNsfw = true, overrideVersionCode = 1),
         SingleLang("Silence Scan", "https://silencescan.com.br", "pt-BR", isNsfw = true, overrideVersionCode = 5),
         SingleLang("YANP Fansub", "https://yanpfansub.com", "pt-BR", isNsfw = true),
-        SingleLang("World Romance Translation", "https://wrt.my.id", "id", overrideVersionCode = 6),
+        SingleLang("World Romance Translation", "https://wrt.my.id", "id", overrideVersionCode = 7),
         SingleLang("Ozul Scans", "https://ozulscans.com", "ar"),
         SingleLang("Tsundoku Traduções", "https://tsundokutraducoes.com.br", "pt-BR", className = "TsundokuTraducoes", overrideVersionCode = 8)
     )

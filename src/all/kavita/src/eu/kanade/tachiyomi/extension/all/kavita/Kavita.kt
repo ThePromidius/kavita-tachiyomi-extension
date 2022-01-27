@@ -397,7 +397,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
         return GET(url, headersBuilder().build())
     }
 
-    private fun chapterFromObject(obj: ChapterDto, counter: Int = 0): SChapter = SChapter.create().apply {
+    private fun chapterFromObject(obj: ChapterDto): SChapter = SChapter.create().apply {
         url = obj.id.toString()
         if (obj.number == "0" && obj.isSpecial) {
             name = obj.range
@@ -439,10 +439,8 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
         try {
             val volumes = response.parseAs<List<VolumeDto>>()
             val allChapterList = mutableListOf<SChapter>()
-            var counter = 0
             volumes.forEach { volume ->
                 run {
-                    counter += 1
                     if (volume.number == 0) {
                         // Regular chapters
                         volume.chapters.map {
@@ -1076,7 +1074,6 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             setupLoginHeaders().build(), "{}".toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         )
         client.newCall(request).execute().use {
-            val peekbody = it.peekBody(Long.MAX_VALUE).string()
             if (it.code == 200) {
                 try {
                     jwtToken = it.parseAs<AuthenticationDto>().token
@@ -1101,7 +1098,6 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
     init {
         if (apiUrl.isNotBlank()) {
             Single.fromCallable {
-
                 // Login
                 var loginSuccesful = false
                 try {
@@ -1110,7 +1106,6 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                 } catch (e: LoginErrorException) {
                     Log.e(LOG_TAG, "Init login failed: $e")
                 }
-
                 if (loginSuccesful) { // doing this check to not clutter LOGS
                     try { // Get current version
                         val requestUrl = "$apiUrl/Server/server-info"
@@ -1119,8 +1114,8 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                             .parseAs<ServerInfoDto>()
                         Log.e(
                             LOG_TAG,
-                            "Extension version: ${BuildConfig.VERSION_CODE} - ${BuildConfig.VERSION_NAME}" +
-                                "Kavita version: ${serverInfoDto.kavitaVersion}"
+                            "Extension version: code=${BuildConfig.VERSION_CODE}  name=${BuildConfig.VERSION_NAME}" +
+                                " - - Kavita version: ${serverInfoDto.kavitaVersion}"
                         ) // this is not a real error. Using this so it gets printed in dump logs if there's any error
                     } catch (e: EmptyRequestBody) {
                         Log.e(LOG_TAG, "Body of the request is empty. Tachiyomi version: code=${BuildConfig.VERSION_CODE} - name=${BuildConfig.VERSION_NAME}")

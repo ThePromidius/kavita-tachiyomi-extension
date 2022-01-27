@@ -24,6 +24,7 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataTag
 import eu.kanade.tachiyomi.extension.all.kavita.dto.PersonRole
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesMetadataDto
+import eu.kanade.tachiyomi.extension.all.kavita.dto.ServerInfoDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.VolumeDto
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
@@ -44,6 +45,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -58,7 +60,7 @@ import uy.kohesive.injekt.injectLazy
 import java.io.IOException
 import java.security.MessageDigest
 
-class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
+class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override val id by lazy {
         val key = "${"kavita_$suffix"}/all/$versionId"
@@ -82,6 +84,9 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     private val helper = KavitaHelper()
     private inline fun <reified T> Response.parseAs(): T =
         use {
+            if (it.peekBody(Long.MAX_VALUE).string().orEmpty().isEmpty()) {
+                throw EmptyRequestBody("The body of the response is empty")
+            }
             json.decodeFromString(it.body?.string().orEmpty())
         }
     private inline fun <reified T : Enum<T>> safeValueOf(type: String): T {
@@ -332,7 +337,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         title = obj.name
         thumbnail_url = "$apiUrl/Image/series-cover?seriesId=${obj.seriesId}"
         description = "None"
-        url = "$apiUrl/Series/${obj.seriesId}"
+        url = "$apiUrl/Series/${obj.seriesId}?sourceId=$suffix"
     }
 
     /**
@@ -363,9 +368,10 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val result = response.parseAs<SeriesMetadataDto>()
 
         val existingSeries = series.find { dto -> dto.id == result.seriesId }
-
+        Log.d("[Kavita]", "old manga url:")
         if (existingSeries != null) {
             val manga = helper.createSeriesDto(existingSeries, apiUrl)
+            manga.url = "$apiUrl/Series/${result.seriesId}"
             manga.artist = result.coverArtists.joinToString { it.name }
             manga.description = result.summary
             manga.author = result.writers.joinToString { it.name }
@@ -391,7 +397,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         return GET(url, headersBuilder().build())
     }
 
-    private fun chapterFromObject(obj: ChapterDto): SChapter = SChapter.create().apply {
+    private fun chapterFromObject(obj: ChapterDto, counter: Int = 0): SChapter = SChapter.create().apply {
         url = obj.id.toString()
         if (obj.number == "0" && obj.isSpecial) {
             name = obj.range
@@ -401,7 +407,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         }
         date_upload = helper.parseDate(obj.created)
         chapter_number = obj.number.toFloat()
-        scanlator = obj.pages.toString()
+        scanlator = "${obj.pages} pages"
     }
 
     private fun chapterFromVolume(obj: ChapterDto, volume: VolumeDto): SChapter =
@@ -427,14 +433,16 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             url = obj.id.toString()
             date_upload = helper.parseDate(obj.created)
             chapter_number = obj.number.toFloat()
-            scanlator = "${obj.pages}"
+            scanlator = "${obj.pages} pages"
         }
     override fun chapterListParse(response: Response): List<SChapter> {
         try {
             val volumes = response.parseAs<List<VolumeDto>>()
             val allChapterList = mutableListOf<SChapter>()
+            var counter = 0
             volumes.forEach { volume ->
                 run {
+                    counter += 1
                     if (volume.number == 0) {
                         // Regular chapters
                         volume.chapters.map {
@@ -465,7 +473,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
         val chapterId = chapter.url
-        val numPages = chapter.scanlator?.toInt()
+        val numPages = chapter.scanlator?.replace(" pages", "")?.toInt()
         val numPages2 = "$numPages".toInt() - 1
         val pages = mutableListOf<Page>()
         for (i in 0..numPages2) {
@@ -797,8 +805,15 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     class LoginErrorException(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
         constructor(cause: Throwable) : this(null, cause)
     }
+    class OpdsurlExistsInPref(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
+        constructor(cause: Throwable) : this(null, cause)
+    }
+    class EmptyRequestBody(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
+        constructor(cause: Throwable) : this(null, cause)
+    }
+
     override fun headersBuilder(): Headers.Builder {
-        if (jwtToken.isEmpty()) throw LoginErrorException("403 Error\nOPDS address got modified or is incorrect")
+        if (jwtToken.isEmpty()) throw LoginErrorException("401 Error\nOPDS address got modified or is incorrect")
         return Headers.Builder()
             .add("User-Agent", "Tachiyomi Kavita v${BuildConfig.VERSION_NAME}")
             .add("Content-Type", "application/json")
@@ -944,6 +959,18 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             }
             setOnPreferenceChangeListener { _, newValue ->
                 try {
+                    val opdsUrlInPref = opdsUrlInPreferences(newValue.toString()) // We don't allow hot have multiple sources with same ip or domain
+                    if (opdsUrlInPref.isNotEmpty()) {
+                        // TODO("Add option to allow multiple sources with same url at the cost of tracking")
+                        preferences.edit().putString(title, "").commit()
+                        Toast.makeText(
+                            context,
+                            "URL exists in a different source -> $opdsUrlInPref",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        throw OpdsurlExistsInPref("Url exists in a different source -> $opdsUrlInPref")
+                    }
+
                     val res = preferences.edit().putString(title, newValue as String).commit()
                     Toast.makeText(
                         context,
@@ -953,8 +980,11 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     setupLogin(newValue)
                     Log.v(LOG_TAG, "[Preferences] Successfully modified OPDS URL")
                     res
+                } catch (e: OpdsurlExistsInPref) {
+                    Log.e(LOG_TAG, "Url exists in a different sourcce")
+                    false
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    Log.e(LOG_TAG, "Unrecognised error", e)
                     false
                 }
             }
@@ -984,6 +1014,34 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     /**
      * LOGIN
      **/
+
+    private fun opdsUrlInPreferences(url: String): String {
+        fun getCleanedApiUrl(url: String): String = "${url.split("/api/").first()}/api"
+        /**Used to check if a url already exists in preference in any source
+         * This is a limitation needed for tracking.**/
+        for (sourceId in 1..3) { // There's 3 sources so 3 preferences to check
+            val sourceSuffixID by lazy {
+                val key = "${"kavita_$sourceId"}/all/1" // Hardcoded versionID to 1
+                val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
+                (0..7).map { bytes[it].toLong() and 0xff shl 8 * (7 - it) }
+                    .reduce(Long::or) and Long.MAX_VALUE
+            }
+            val preferences: SharedPreferences by lazy {
+                Injekt.get<Application>().getSharedPreferences("source_$sourceSuffixID", 0x0000)
+            }
+            val prefApiUrl = preferences.getString("APIURL", "")!!
+
+            if (prefApiUrl.isNotEmpty()) {
+                if (prefApiUrl == getCleanedApiUrl(url)) {
+                    if (sourceId.toString() != suffix) {
+                        return preferences.getString(KavitaConstants.customSourceNamePref, sourceId.toString())!!
+                    }
+                }
+            }
+        }
+        return ""
+    }
+
     private fun setupLogin(addressFromPreference: String = "") {
         Log.v(LOG_TAG, "[Setup Login] Starting setup")
         val validaddress = if (address.isEmpty()) addressFromPreference else address
@@ -991,13 +1049,11 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
         val apiKey = tokens[1]
         val baseUrlSetup = tokens[0].replace("\n", "\\n")
 
-        if (!baseUrlSetup.startsWith("http")) {
-            try {
-                throw Exception("""Url does not start with "http/s" but with ${baseUrlSetup.split("://")[0]} """)
-            } catch (e: Exception) {
-                throw Exception("""Malformed Url: $baseUrlSetup""")
-            }
+        if (baseUrlSetup.toHttpUrlOrNull() == null) {
+            Log.e(LOG_TAG, "Invalid URL $baseUrlSetup",)
+            throw Exception("""Invalid URL: $baseUrlSetup""")
         }
+
         preferences.edit().putString("BASEURL", baseUrlSetup).commit()
         preferences.edit().putString("APIKEY", apiKey).commit()
         preferences.edit().putString("APIURL", "$baseUrlSetup/api").commit()
@@ -1020,6 +1076,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
             setupLoginHeaders().build(), "{}".toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         )
         client.newCall(request).execute().use {
+            val peekbody = it.peekBody(Long.MAX_VALUE).string()
             if (it.code == 200) {
                 try {
                     jwtToken = it.parseAs<AuthenticationDto>().token
@@ -1029,8 +1086,13 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                     throw IOException("Please check your kavita version.\nv0.5+ is required for the extension to work properly")
                 }
             } else {
-                Log.e(LOG_TAG, "[LOGIN] login failed. Authentication was not successful -> Code: ${it.code}.Response message: ${it.message} Response body: ${it.body!!}.")
-                throw LoginErrorException("[LOGIN] login failed. Authentication was not successful")
+                if (it.code == 500) {
+                    Log.e(LOG_TAG, "[LOGIN] login failed. There was some error -> Code: ${it.code}.Response message: ${it.message} Response body: $peekbody.")
+                    throw LoginErrorException("[LOGIN] login failed. Something went wrong")
+                } else {
+                    Log.e(LOG_TAG, "[LOGIN] login failed. Authentication was not successful -> Code: ${it.code}.Response message: ${it.message} Response body: $peekbody.")
+                    throw LoginErrorException("[LOGIN] login failed. Something went wrong")
+                }
             }
         }
         Log.v(LOG_TAG, "[Login] Login successful")
@@ -1039,6 +1101,7 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
     init {
         if (apiUrl.isNotBlank()) {
             Single.fromCallable {
+
                 // Login
                 var loginSuccesful = false
                 try {
@@ -1047,7 +1110,26 @@ class Kavita(suffix: String = "") : ConfigurableSource, HttpSource() {
                 } catch (e: LoginErrorException) {
                     Log.e(LOG_TAG, "Init login failed: $e")
                 }
+
                 if (loginSuccesful) { // doing this check to not clutter LOGS
+                    try { // Get current version
+                        val requestUrl = "$apiUrl/Server/server-info"
+                        val serverInfoDto = client.newCall(GET(requestUrl, headersBuilder().build()))
+                            .execute()
+                            .parseAs<ServerInfoDto>()
+                        Log.e(
+                            LOG_TAG,
+                            "Extension version: ${BuildConfig.VERSION_CODE} - ${BuildConfig.VERSION_NAME}" +
+                                "Kavita version: ${serverInfoDto.kavitaVersion}"
+                        ) // this is not a real error. Using this so it gets printed in dump logs if there's any error
+                    } catch (e: EmptyRequestBody) {
+                        Log.e(LOG_TAG, "Body of the request is empty. Tachiyomi version: code=${BuildConfig.VERSION_CODE} - name=${BuildConfig.VERSION_NAME}")
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e(LOG_TAG, "exception fetching kavita version - Tachiyomi version: code=${BuildConfig.VERSION_CODE} - name=${BuildConfig.VERSION_NAME}", e)
+                        throw e
+                    }
+
                     // Genres
                     Log.v(LOG_TAG, "[Filter] Fetching filters ")
                     try {

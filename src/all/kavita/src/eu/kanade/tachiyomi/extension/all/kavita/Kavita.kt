@@ -10,7 +10,6 @@ import androidx.preference.MultiSelectListPreference
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.extension.all.kavita.dto.AuthenticationDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.ChapterDto
-import eu.kanade.tachiyomi.extension.all.kavita.dto.KavitaComicsSearch
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MangaFormat
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataAgeRatings
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataCollections
@@ -22,8 +21,10 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPeople
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPubStatus
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataTag
 import eu.kanade.tachiyomi.extension.all.kavita.dto.PersonRole
+import eu.kanade.tachiyomi.extension.all.kavita.dto.SearchResultsDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesMetadataDto
+import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesSearchDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.ServerInfoDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.VolumeDto
 import eu.kanade.tachiyomi.network.GET
@@ -331,13 +332,13 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             if (response.request.url.toString().contains("api/series/all"))
                 return popularMangaParse(response)
 
-            val result = response.parseAs<List<KavitaComicsSearch>>()
+            val result = response.parseAs<SearchResultsDto>().series
             val mangaList = result.map(::searchMangaFromObject)
             return MangasPage(mangaList, false)
         }
     }
 
-    private fun searchMangaFromObject(obj: KavitaComicsSearch): SManga = SManga.create().apply {
+    private fun searchMangaFromObject(obj: SeriesSearchDto): SManga = SManga.create().apply {
         title = obj.name
         thumbnail_url = "$apiUrl/Image/series-cover?seriesId=${obj.seriesId}"
         description = "None"
@@ -419,24 +420,30 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             // If there are multiple chapters to this volume, then prefix with Volume number
             if (volume.chapters.isNotEmpty() && obj.number != "0") {
                 name = "Volume ${volume.number} Chapter ${obj.number}"
+                chapter_number = obj.number.toFloat()
             } else if (obj.number == "0") {
                 // This chapter is solely on volume
                 if (volume.number == 0) {
                     // Treat as special
                     if (obj.range == "") {
                         name = "Chapter 0"
+                        chapter_number = obj.number.toFloat()
                     } else {
                         name = obj.range
+                        chapter_number = obj.number.toFloat()
                     }
                 } else {
                     name = "Volume ${volume.number}"
+//                    val newVolNumber: Float = (volume.number / 100).toFloat()
+//                    chapter_number = newVolNumber.toString().padStart(3, '0').toFloat()
+                    chapter_number = volume.number.toFloat() / 100
                 }
             } else {
                 name = "Unhandled Else Volume ${volume.number}"
             }
             url = obj.id.toString()
             date_upload = helper.parseDate(obj.created)
-            chapter_number = obj.number.toFloat()
+
             scanlator = "${obj.pages} pages"
         }
     override fun chapterListParse(response: Response): List<SChapter> {
@@ -853,13 +860,8 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                 "readStatus",
                 buildJsonObject {
                     if (filter.readStatus.isNotEmpty()) {
-                        filter.readStatus.forEach { status ->
-                            if (status in listOf("notRead", "inProgress", "read")) {
-                                put(status, JsonPrimitive(true))
-                            } else {
-                                put(status, JsonPrimitive(false))
-                            }
-                        }
+                        filter.readStatusList
+                            .forEach { status -> put(status, JsonPrimitive(status in filter.readStatus)) }
                     } else {
                         put("notRead", JsonPrimitive(true))
                         put("inProgress", JsonPrimitive(true))
@@ -902,7 +904,6 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             "",
             "The OPDS url copied from User Settings. This should include address and the api key on end."
         )
-
         val enabledFiltersPref = MultiSelectListPreference(screen.context).apply {
             key = KavitaConstants.toggledFiltersPref
             title = "Default filters shown"

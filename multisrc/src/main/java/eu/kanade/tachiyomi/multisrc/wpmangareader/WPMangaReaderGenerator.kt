@@ -19,12 +19,14 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("BeastScans", "https://beastscans.com", "en"),
         SingleLang("iiMANGA", "https://iimanga.com", "ar"),
         SingleLang("Magus Manga", "https://magusmanga.com", "ar"),
-        SingleLang("Kiryuu", "https://kiryuu.id", "id", overrideVersionCode = 5),
+        SingleLang("Kiryuu", "https://kiryuu.id", "id", overrideVersionCode = 6),
         SingleLang("KomikMama", "https://komikmama.net", "id"),
         SingleLang("MangaKita", "https://mangakita.net", "id", overrideVersionCode = 1),
         SingleLang("Gabut Scans", "https://gabutscans.com", "id"),
         SingleLang("Graze Scans", "https://grazescans.com", "en", overrideVersionCode = 2),
+        SingleLang("Mangás Chan", "https://mangaschan.com", "pt-BR", className = "MangasChan"),
         SingleLang("Martial Manga", "https://martialmanga.com", "es"),
+        SingleLang("Mode Scanlator", "https://modescanlator.com", "pt-BR", overrideVersionCode = 7),
         SingleLang("Ngomik", "https://ngomik.net", "id", overrideVersionCode = 1),
         SingleLang("Sekaikomik", "https://www.sekaikomik.site", "id", isNsfw = true, overrideVersionCode = 8),
         SingleLang("Davey Scans", "https://daveyscans.com", "id", overrideVersionCode = 1),
@@ -43,10 +45,10 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("Fusion Scanlation", "https://fusionscanlation.com", "es", className = "FusionScanlation", overrideVersionCode = 2),
         SingleLang("Ace Scans", "https://acescans.xyz", "en", isNsfw = true, overrideVersionCode = 1),
         SingleLang("Silence Scan", "https://silencescan.com.br", "pt-BR", isNsfw = true, overrideVersionCode = 5),
-        SingleLang("YANP Fansub", "https://yanpfansub.com", "pt-BR", isNsfw = true),
+        SingleLang("YANP Fansub", "https://melhorcasal.com", "pt-BR", isNsfw = true, overrideVersionCode = 1),
         SingleLang("World Romance Translation", "https://wrt.my.id", "id", overrideVersionCode = 7),
         SingleLang("Ozul Scans", "https://ozulscans.com", "ar"),
-        SingleLang("Tsundoku Traduções", "https://tsundokutraducoes.com.br", "pt-BR", className = "TsundokuTraducoes", overrideVersionCode = 8)
+        SingleLang("Tsundoku Traduções", "https://tsundoku.com.br", "pt-BR", className = "TsundokuTraducoes", overrideVersionCode = 9)
     )
 
     companion object {

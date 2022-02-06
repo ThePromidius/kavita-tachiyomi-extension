@@ -1,6 +1,8 @@
 name: Issue moderator
 
 on:
+  issues:
+    types: [opened]
   issue_comment:
     types: [created]
 
@@ -12,3 +14,5 @@ jobs:
         uses: tachiyomiorg/issue-moderator-action@v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+          duplicate-check-enabled: true
+          duplicate-check-label: Source request

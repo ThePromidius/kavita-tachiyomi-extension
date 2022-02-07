@@ -62,6 +62,27 @@ import java.io.IOException
 import java.net.ConnectException
 import java.security.MessageDigest
 
+class CompareChapters {
+    companion object : Comparator<SChapter> {
+        override fun compare(a: SChapter, b: SChapter): Int {
+            if (a.chapter_number < 1.0 && b.chapter_number < 1.0) {
+                // These are volumes, multiply by 100 and do normal sort
+                return if ((a.chapter_number * 100) < (b.chapter_number * 100)) {
+                    -1
+                } else 1
+            } else {
+                if (a.chapter_number < 1.0 && b.chapter_number >= 1.0) {
+                    // A is volume, b is not. A should sort first
+                    return -1
+                } else if (a.chapter_number >= 1.0 && b.chapter_number < 1.0) {
+                    return 1
+                }
+            }
+            return 0
+        }
+    }
+}
+
 class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override val id by lazy {
@@ -153,8 +174,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                     if (filter.state != null) {
                         toFilter.sorting = filter.state!!.index + 1
                         toFilter.sorting_asc = filter.state!!.ascending
-                        // disabled till the search api is stable
-                        // isFilterOn = true
+                        isFilterOn = false
                     }
                 }
                 is StatusFilterGroup -> {
@@ -342,7 +362,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
         title = obj.name
         thumbnail_url = "$apiUrl/Image/series-cover?seriesId=${obj.seriesId}"
         description = "None"
-        url = "$apiUrl/Series/${obj.seriesId}?sourceId=$suffix"
+        url = "$apiUrl/Series/${obj.seriesId}"
     }
 
     /**
@@ -466,6 +486,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                 }
             }
             allChapterList.reverse()
+            allChapterList.sortWith(CompareChapters)
             return allChapterList
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Unhandled exception parsing chapters. Send logs to kavita devs", e)
@@ -997,7 +1018,6 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
         }
     }
 
-    // private fun getPrefapiKey(): String = preferences.getString("APIKEY", "")!!
     private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
     private fun getPrefApiUrl(): String = preferences.getString("APIURL", "")!!
     private fun getPrefKey(key: String): String = preferences.getString(key, "")!!
@@ -1050,13 +1070,13 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
 
     private fun setupLogin(addressFromPreference: String = "") {
         Log.v(LOG_TAG, "[Setup Login] Starting setup")
-        val validaddress = if (address.isEmpty()) addressFromPreference else address
-        val tokens = validaddress.split("/api/opds/")
+        val validAddress = address.ifEmpty { addressFromPreference }
+        val tokens = validAddress.split("/api/opds/")
         val apiKey = tokens[1]
         val baseUrlSetup = tokens[0].replace("\n", "\\n")
 
         if (baseUrlSetup.toHttpUrlOrNull() == null) {
-            Log.e(LOG_TAG, "Invalid URL $baseUrlSetup",)
+            Log.e(LOG_TAG, "Invalid URL $baseUrlSetup")
             throw Exception("""Invalid URL: $baseUrlSetup""")
         }
         preferences.edit().putString("BASEURL", baseUrlSetup).apply()

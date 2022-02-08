@@ -174,7 +174,8 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                     if (filter.state != null) {
                         toFilter.sorting = filter.state!!.index + 1
                         toFilter.sorting_asc = filter.state!!.ascending
-                        isFilterOn = false
+                        // Disabled until search is stable
+//                        isFilterOn = false
                     }
                 }
                 is StatusFilterGroup -> {
@@ -401,16 +402,17 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             manga.description = result.summary
             manga.author = result.writers.joinToString { it.name }
             manga.genre = result.genres.joinToString { it.title }
+            manga.thumbnail_url = "$apiUrl/image/series-cover?seriesId=${result.seriesId}"
 
             return manga
         }
 
         return SManga.create().apply {
             url = "$apiUrl/Series/${result.seriesId}"
-            artist = result.coverArtists.joinToString { ", " }
-            author = result.writers.joinToString { ", " }
-            genre = result.genres.joinToString { ", " }
-            thumbnail_url = "$apiUrl/image/series-cover?seriesId=${result.seriesId}"
+            artist = result.coverArtists.joinToString { it.name }
+            description = result.summary
+            author = result.writers.joinToString { it.name }
+            genre = result.genres.joinToString { it.title }
         }
     }
 
@@ -1102,6 +1104,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
         )
         client.newCall(request).execute().use {
             val peekbody = it.peekBody(Long.MAX_VALUE).toString()
+
             if (it.code == 200) {
                 try {
                     jwtToken = it.parseAs<AuthenticationDto>().token
@@ -1140,16 +1143,15 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                     ) // this is not a real error. Using this so it gets printed in dump logs if there's any error
                 } catch (e: EmptyRequestBody) {
                     Log.e(LOG_TAG, "Extension version: code=${BuildConfig.VERSION_CODE} - name=${BuildConfig.VERSION_NAME}")
-                    throw e
                 } catch (e: Exception) {
                     Log.e(LOG_TAG, "Tachiyomi version: code=${BuildConfig.VERSION_CODE} - name=${BuildConfig.VERSION_NAME}", e)
-                    throw e
                 }
                 try { // Load Filters
                     // Genres
                     Log.v(LOG_TAG, "[Filter] Fetching filters ")
                     client.newCall(GET("$apiUrl/Metadata/genres", headersBuilder().build()))
                         .execute().use { response ->
+
                             genresListMeta = try {
                                 val responseBody = response.body
                                 if (responseBody != null) {

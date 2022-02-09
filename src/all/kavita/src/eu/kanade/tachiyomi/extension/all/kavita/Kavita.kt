@@ -196,6 +196,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                 }
                 is UserRating -> {
                     toFilter.userRating = filter.state
+                    isFilterOn = true
                 }
                 is TagFilterGroup -> {
                     filter.state.forEach { content ->

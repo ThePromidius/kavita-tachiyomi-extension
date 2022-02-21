@@ -62,28 +62,29 @@ import java.io.IOException
 import java.net.ConnectException
 import java.security.MessageDigest
 
-class CompareChapters {
-    companion object : Comparator<SChapter> {
-        override fun compare(a: SChapter, b: SChapter): Int {
-            if (a.chapter_number < 1.0 && b.chapter_number < 1.0) {
-                // These are volumes, multiply by 100 and do normal sort
-                return if ((a.chapter_number * 100) < (b.chapter_number * 100)) {
-                    -1
-                } else 1
-            } else {
-                if (a.chapter_number < 1.0 && b.chapter_number >= 1.0) {
-                    // A is volume, b is not. A should sort first
-                    return -1
-                } else if (a.chapter_number >= 1.0 && b.chapter_number < 1.0) {
-                    return 1
+class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource() {
+    class CompareChapters {
+        companion object : Comparator<SChapter> {
+            override fun compare(a: SChapter, b: SChapter): Int {
+                if (a.chapter_number < 1.0 && b.chapter_number < 1.0) {
+                    // Both are volumes, multiply by 100 and do normal sort
+                    return if ((a.chapter_number * 100) < (b.chapter_number * 100)) {
+                        1
+                    } else -1
+                } else {
+                    if (a.chapter_number < 1.0 && b.chapter_number >= 1.0) {
+                        // A is volume, b is not. A should sort first
+                        return 1
+                    } else if (a.chapter_number >= 1.0 && b.chapter_number < 1.0) {
+                        return -1
+                    }
                 }
+                if (a.chapter_number < b.chapter_number) return 1
+                if (a.chapter_number > b.chapter_number) return -1
+                return 0
             }
-            return 0
         }
     }
-}
-
-class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource() {
 
     override val id by lazy {
         val key = "${"kavita_$suffix"}/all/$versionId"
@@ -196,6 +197,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                 }
                 is UserRating -> {
                     toFilter.userRating = filter.state
+                    isFilterOn = true
                 }
                 is TagFilterGroup -> {
                     filter.state.forEach { content ->
@@ -336,12 +338,15 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                         }
                     }
                 }
+                else -> isFilterOn = false
             }
         }
 
-        if (isFilterOn || query.isEmpty()) {
+        if (query.isEmpty()) {
+            isFilterOn = true
             return popularMangaRequest(page)
         } else {
+            isFilterOn = false
             return GET("$apiUrl/Library/search?queryString=$query", headers)
         }
     }
@@ -427,6 +432,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
     private fun chapterFromObject(obj: ChapterDto): SChapter = SChapter.create().apply {
         url = obj.id.toString()
         if (obj.number == "0" && obj.isSpecial) {
+            // This is a special. Chapter name is special name
             name = obj.range
         } else {
             val cleanedName = obj.title.replaceFirst("^0+(?!$)".toRegex(), "")
@@ -487,7 +493,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
                     }
                 }
             }
-            allChapterList.reverse()
+
             allChapterList.sortWith(CompareChapters)
             return allChapterList
         } catch (e: Exception) {

@@ -584,6 +584,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
         Pair("Sort name", 1),
         Pair("Created", 2),
         Pair("Last modified", 3),
+        Pair("Item added", 4),
     )
     private class StatusFilter(name: String) : Filter.CheckBox(name, false)
     private class StatusFilterGroup(filters: List<StatusFilter>) :

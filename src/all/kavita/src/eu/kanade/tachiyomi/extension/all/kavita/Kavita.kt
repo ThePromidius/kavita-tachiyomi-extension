@@ -46,10 +46,12 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import okhttp3.Dns
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -87,7 +89,10 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
             }
         }
     }
-
+    override val client: OkHttpClient =
+        network.client.newBuilder()
+            .dns(Dns.SYSTEM)
+            .build()
     override val id by lazy {
         val key = "${"kavita_$suffix"}/all/$versionId"
         val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())

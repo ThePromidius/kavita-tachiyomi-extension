@@ -153,18 +153,18 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
+        if (!isLoged) {
+            doLogin()
+        }
         return POST(
-            "$apiUrl/series/recently-added?pageNumber=$page&libraryId=0&pageSize=20",
+            "$apiUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
-            buildFilterBody()
+            buildFilterBody(MetadataPayload(sorting = 4, sorting_asc = false, forceUseMetadataPayload = true))
         )
     }
 
     override fun latestUpdatesParse(response: Response): MangasPage {
-        val result = response.parseAs<List<SeriesDto>>()
-        series = result
-        val mangaList = result.map { item -> helper.createSeriesDto(item, apiUrl) }
-        return MangasPage(mangaList, helper.hasNextPage(response))
+        return popularMangaParse(response)
     }
 
     /**
@@ -878,7 +878,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
     }
     private fun buildFilterBody(filter: MetadataPayload = toFilter): RequestBody {
         var filter = filter
-        if (!isFilterOn) {
+        if (!isFilterOn and !filter.forceUseMetadataPayload) {
             filter = MetadataPayload()
         }
 

@@ -464,23 +464,29 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
         SChapter.create().apply {
             // If there are multiple chapters to this volume, then prefix with Volume number
             if (volume.chapters.isNotEmpty() && obj.number != "0") {
+                // This volume is not volume 0, hence they are not loose chapters
+                // We just add a nice Volume X to the chapter title
+                // Chapter-based Volume
                 name = "Volume ${volume.number} Chapter ${obj.number}"
                 chapter_number = obj.number.toFloat()
             } else if (obj.number == "0") {
-                // This chapter is solely on volume
+                // Both specials and volume has chapter number 0
                 if (volume.number == 0) {
                     // Treat as special
+                    // Special is not in a volume
                     if (obj.range == "") {
+                        // Special does not have any Title
                         name = "Chapter 0"
                         chapter_number = obj.number.toFloat()
                     } else {
+                        // We use it's own special tile
                         name = obj.range
                         chapter_number = obj.number.toFloat()
                     }
                 } else {
+                    // Is a single-file volume
+                    // We encode the chapter number to support tracking
                     name = "Volume ${volume.number}"
-//                    val newVolNumber: Float = (volume.number / 100).toFloat()
-//                    chapter_number = newVolNumber.toString().padStart(3, '0').toFloat()
                     chapter_number = volume.number.toFloat() / 100
                 }
             } else {

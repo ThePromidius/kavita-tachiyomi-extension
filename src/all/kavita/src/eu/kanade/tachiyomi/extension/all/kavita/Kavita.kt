@@ -115,10 +115,16 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
     private val helper = KavitaHelper()
     private inline fun <reified T> Response.parseAs(): T =
         use {
+            if (it.code == 401) {
+                Log.e(LOG_TAG, "Http error 401 - Not authorized: ${it.request.url}")
+                Throwable("Http error 401 - Not authorized: ${it.request.url}")
+            }
+
             if (it.peekBody(Long.MAX_VALUE).string().isEmpty()) {
+                Log.e(LOG_TAG, "Empty body String for request url: ${it.request.url}")
                 throw EmptyRequestBody(
                     "Body of the response is empty. RequestUrl=${it.request.url}\nPlease check your kavita instance is up to date",
-                    Throwable("Empty Body of the response is empty. RequestUrl=${it.request.url}\n Please check your kavita instance is up to date")
+                    Throwable("Error. Request body is empty")
                 )
             }
             json.decodeFromString(it.body?.string().orEmpty())
@@ -389,7 +395,6 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
         return client.newCall(GET("$apiUrl/series/metadata?seriesId=$serieId", headersBuilder().build()))
             .asObservableSuccess()
             .map { response ->
-                Log.d(LOG_TAG, "fetchMangaDetails response body: ```${response.peekBody(Long.MAX_VALUE).string()}```")
                 mangaDetailsParse(response).apply { initialized = true }
             }
     }
@@ -408,7 +413,6 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
         val result = response.parseAs<SeriesMetadataDto>()
 
         val existingSeries = series.find { dto -> dto.id == result.seriesId }
-        Log.d("[Kavita]", "old manga url:")
         if (existingSeries != null) {
             val manga = helper.createSeriesDto(existingSeries, apiUrl)
             manga.url = "$apiUrl/Series/${result.seriesId}"
@@ -420,6 +424,9 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
 
             return manga
         }
+        val serieDto = client.newCall(GET("$apiUrl/Series/${result.seriesId}", headersBuilder().build()))
+            .execute()
+            .parseAs<SeriesDto>()
 
         return SManga.create().apply {
             url = "$apiUrl/Series/${result.seriesId}"
@@ -427,6 +434,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
             description = result.summary
             author = result.writers.joinToString { it.name }
             genre = result.genres.joinToString { it.title }
+            title = serieDto.name
         }
     }
 

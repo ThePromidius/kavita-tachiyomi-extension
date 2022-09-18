@@ -21,10 +21,8 @@ import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPeople
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataPubStatus
 import eu.kanade.tachiyomi.extension.all.kavita.dto.MetadataTag
 import eu.kanade.tachiyomi.extension.all.kavita.dto.PersonRole
-import eu.kanade.tachiyomi.extension.all.kavita.dto.SearchResultsDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesMetadataDto
-import eu.kanade.tachiyomi.extension.all.kavita.dto.SeriesSearchDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.ServerInfoDto
 import eu.kanade.tachiyomi.extension.all.kavita.dto.VolumeDto
 import eu.kanade.tachiyomi.network.GET
@@ -141,7 +139,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
         return POST(
             "$apiUrl/series/all?pageNumber=$page&libraryId=0&pageSize=20",
             headersBuilder().build(),
-            buildFilterBody()
+            buildFilterBody(currentFilter)
         )
     }
 
@@ -176,62 +174,70 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
      * SEARCH MANGA
      * **/
 
-    private var currentFilter = MetadataPayload()
+    private var currentFilter: MetadataPayload = MetadataPayload()
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        currentFilter = MetadataPayload() // need to reset it or will double
+        val newFilter = MetadataPayload() // need to reset it or will double
         filters.forEach { filter ->
             when (filter) {
 
                 is SortFilter -> {
                     if (filter.state != null) {
-                        currentFilter.sorting = filter.state!!.index + 1
-                        currentFilter.sorting_asc = filter.state!!.ascending
-                        // Disabled until search is stable
-//                        isFilterOn = false
+                        newFilter.sorting = filter.state!!.index + 1
+                        newFilter.sorting_asc = filter.state!!.ascending
                     }
                 }
                 is StatusFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.readStatus.add(content.name)
+                            newFilter.readStatus.add(content.name)
+                        }
+                    }
+                }
+                is ReleaseYearRangeGroup -> {
+                    filter.state.forEach { content ->
+                        if (content.state.isNotEmpty()) {
+                            if (content.name == "Min")
+                                newFilter.releaseYearRangeMin = content.state.toInt()
+                            if (content.name == "Max")
+                                newFilter.releaseYearRangeMax = content.state.toInt()
                         }
                     }
                 }
                 is GenreFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.genres.add(genresListMeta.find { it.title == content.name }!!.id)
+                            newFilter.genres.add(genresListMeta.find { it.title == content.name }!!.id)
                         }
                     }
                 }
                 is UserRating -> {
-                    currentFilter.userRating = filter.state
+                    newFilter.userRating = filter.state
                 }
                 is TagFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.tags.add(tagsListMeta.find { it.title == content.name }!!.id)
+                            newFilter.tags.add(tagsListMeta.find { it.title == content.name }!!.id)
                         }
                     }
                 }
                 is AgeRatingFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.ageRating.add(ageRatingsListMeta.find { it.title == content.name }!!.value)
+                            newFilter.ageRating.add(ageRatingsListMeta.find { it.title == content.name }!!.value)
                         }
                     }
                 }
                 is FormatsFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.formats.add(MangaFormat.valueOf(content.name).ordinal)
+                            newFilter.formats.add(MangaFormat.valueOf(content.name).ordinal)
                         }
                     }
                 }
                 is CollectionFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.collections.add(collectionsListMeta.find { it.title == content.name }!!.id)
+                            newFilter.collections.add(collectionsListMeta.find { it.title == content.name }!!.id)
                         }
                     }
                 }
@@ -239,14 +245,14 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
                 is LanguageFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.language.add(languagesListMeta.find { it.title == content.name }!!.isoCode)
+                            newFilter.language.add(languagesListMeta.find { it.title == content.name }!!.isoCode)
                         }
                     }
                 }
                 is LibrariesFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.libraries.add(libraryListMeta.find { it.name == content.name }!!.id)
+                            newFilter.libraries.add(libraryListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
@@ -254,7 +260,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
                 is PubStatusFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.pubStatus.add(pubStatusListMeta.find { it.title == content.name }!!.value)
+                            newFilter.pubStatus.add(pubStatusListMeta.find { it.title == content.name }!!.value)
                         }
                     }
                 }
@@ -262,70 +268,70 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
                 is WriterPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peopleWriters.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peopleWriters.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
                 is PencillerPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peoplePenciller.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peoplePenciller.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
                 is InkerPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peopleInker.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peopleInker.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
                 is ColoristPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peoplePeoplecolorist.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peoplePeoplecolorist.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
                 is LettererPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peopleLetterer.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peopleLetterer.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
                 is CoverArtistPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peopleCoverArtist.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peopleCoverArtist.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
                 is EditorPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peopleEditor.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peopleEditor.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
                 is PublisherPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peoplePublisher.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peoplePublisher.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
                 is CharacterPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peopleCharacter.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peopleCharacter.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
                 is TranslatorPeopleFilterGroup -> {
                     filter.state.forEach { content ->
                         if (content.state) {
-                            currentFilter.peopleTranslator.add(peopleListMeta.find { it.name == content.name }!!.id)
+                            newFilter.peopleTranslator.add(peopleListMeta.find { it.name == content.name }!!.id)
                         }
                     }
                 }
@@ -333,22 +339,13 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
             }
         }
 
-        currentFilter.seriesNameQuery = query
-
+        newFilter.seriesNameQuery = query
+        currentFilter = newFilter
         return popularMangaRequest(page)
-
-        }
-
+    }
 
     override fun searchMangaParse(response: Response): MangasPage {
         return popularMangaParse(response)
-    }
-
-    private fun searchMangaFromObject(obj: SeriesSearchDto): SManga = SManga.create().apply {
-        title = obj.name
-        thumbnail_url = "$apiUrl/Image/series-cover?seriesId=${obj.seriesId}"
-        description = "None"
-        url = "$apiUrl/Series/${obj.seriesId}"
     }
 
     /**
@@ -413,12 +410,12 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
 
     private fun chapterFromObject(obj: ChapterDto): SChapter = SChapter.create().apply {
         url = obj.id.toString()
-        if (obj.number == "0" && obj.isSpecial) {
+        name = if (obj.number == "0" && obj.isSpecial) {
             // This is a special. Chapter name is special name
-            name = obj.range
+            obj.range
         } else {
             val cleanedName = obj.title.replaceFirst("^0+(?!$)".toRegex(), "")
-            name = "Chapter $cleanedName"
+            "Chapter $cleanedName"
         }
         date_upload = helper.parseDate(obj.created)
         chapter_number = obj.number.toFloat()
@@ -544,7 +541,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
         "Translator"
     )
 
-    private class UserRating() :
+    private class UserRating :
         Filter.Select<String>(
             "Minimum Rating",
             arrayOf(
@@ -559,16 +556,21 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
 
     private class SortFilter(sortables: Array<String>) : Filter.Sort("Sort by", sortables, Selection(0, true))
 
-    val sortableList = listOf(
+    private val sortableList = listOf(
         Pair("Sort name", 1),
         Pair("Created", 2),
         Pair("Last modified", 3),
         Pair("Item added", 4),
+        Pair("Time to Read", 5)
     )
+
     private class StatusFilter(name: String) : Filter.CheckBox(name, false)
     private class StatusFilterGroup(filters: List<StatusFilter>) :
         Filter.Group<StatusFilter>("Status", filters)
 
+    private class ReleaseYearRange(name: String) : Filter.Text(name)
+    private class ReleaseYearRangeGroup(filters: List<ReleaseYearRange>) :
+        Filter.Group<ReleaseYearRange>("Release Year", filters)
     private class GenreFilter(name: String) : Filter.CheckBox(name, false)
     private class GenreFilterGroup(genres: List<GenreFilter>) :
         Filter.Group<GenreFilter>("Genres", genres)
@@ -602,7 +604,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
 
     private class PeopleHeaderFilter(name: String) :
         Filter.Header(name)
-    private class PeopleSeparatorFilter() :
+    private class PeopleSeparatorFilter :
         Filter.Separator()
 
     private class WriterPeopleFilter(name: String) : Filter.CheckBox(name, false)
@@ -678,6 +680,13 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
                     )
                 )
             }
+            if (toggledFilters.contains("ReleaseYearRange")) {
+                filtersLoaded.add(
+                    ReleaseYearRangeGroup(
+                        listOf("Min", "Max").map { ReleaseYearRange(it) }
+                    )
+                )
+            }
 
             if (genresListMeta.isNotEmpty() and toggledFilters.contains("Genres")) {
                 filtersLoaded.add(
@@ -701,8 +710,6 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
                             "Image",
                             "Archive",
                             "Unknown",
-                            "Epub",
-                            "Pdf"
                         ).map { FormatFilter(it) }
                     )
                 )
@@ -855,7 +862,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
             .add("Content-Type", "application/json")
             .add("Authorization", "Bearer $jwtToken")
     }
-    private fun buildFilterBody(filter: MetadataPayload = currentFilter): RequestBody {
+    private fun buildFilterBody(filter: MetadataPayload): RequestBody {
 
         val formats = if (filter.formats.isEmpty()) {
             buildJsonArray {
@@ -905,6 +912,14 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
                 buildJsonObject {
                     put("sortField", filter.sorting)
                     put("isAscending", JsonPrimitive(filter.sorting_asc))
+                }
+            )
+            put("seriesNameQuery", filter.seriesNameQuery)
+            put(
+                "releaseYearRange",
+                buildJsonObject {
+                    put("min", filter.releaseYearRangeMin)
+                    put("max", filter.releaseYearRangeMax)
                 }
             )
         }
@@ -1013,7 +1028,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
 
     private fun getPrefBaseUrl(): String = preferences.getString("BASEURL", "")!!
     private fun getPrefApiUrl(): String = preferences.getString("APIURL", "")!!
-    private fun getPrefKey(key: String): String = preferences.getString(key, "")!!
+    private fun getPrefKey(): String = preferences.getString("APIKEY", "")!!
     private fun getToggledFilters() = preferences.getStringSet(KavitaConstants.toggledFiltersPref, KavitaConstants.defaultFilterPrefEntries)!!
 
     // We strip the last slash since we will append it above
@@ -1090,7 +1105,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, UnmeteredSou
         if (jwtToken.isEmpty()) setupLogin()
         Log.v(LOG_TAG, "[Login] Starting login")
         val request = POST(
-            "$apiUrl/Plugin/authenticate?apiKey=${getPrefKey("APIKEY")}&pluginName=Tachiyomi-Kavita",
+            "$apiUrl/Plugin/authenticate?apiKey=${getPrefKey()}&pluginName=Tachiyomi-Kavita",
             setupLoginHeaders().build(), "{}".toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
         )
         client.newCall(request).execute().use {

@@ -64,6 +64,8 @@ data class MetadataPayload(
     var libraries: ArrayList<Int> = arrayListOf<Int>(),
     var pubStatus: ArrayList<Int> = arrayListOf<Int>(),
     var seriesNameQuery: String = "",
+    var releaseYearRangeMin: Int = 0,
+    var releaseYearRangeMax: Int = 0,
 
     var peopleWriters: ArrayList<Int> = arrayListOf<Int>(),
     var peoplePenciller: ArrayList<Int> = arrayListOf<Int>(),

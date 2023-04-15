@@ -61,6 +61,7 @@ import uy.kohesive.injekt.injectLazy
 import java.io.IOException
 import java.net.ConnectException
 import java.security.MessageDigest
+import java.util.*
 
 class CompareChapters {
     companion object : Comparator<SChapter> {
@@ -100,6 +101,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
     override val baseUrl by lazy { getPrefBaseUrl() }
     private val address by lazy { getPrefAddress() } // Address for the Kavita OPDS url. Should be http(s)://host:(port)/api/opds/api-key
     private var jwtToken = "" // * JWT Token for authentication with the server. Stored in memory.
+    private var apiKey = by lazy { getApiKey() }
     private val LOG_TAG = """extension.all.kavita_${"[$suffix]_" + preferences.getString(KavitaConstants.customSourceNamePref,"[$suffix]")!!.replace(' ','_')}"""
     private var isLoged = false // Used to know if login was correct and not send login requests anymore
 
@@ -362,7 +364,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
 
     private fun searchMangaFromObject(obj: SeriesSearchDto): SManga = SManga.create().apply {
         title = obj.name
-        thumbnail_url = "$apiUrl/Image/series-cover?seriesId=${obj.seriesId}"
+        thumbnail_url = "$apiUrl/Image/series-cover?seriesId=${obj.seriesId}&apiKey=${apiKey}"
         description = "None"
         url = "$apiUrl/Series/${obj.seriesId}"
     }
@@ -403,7 +405,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             manga.description = result.summary
             manga.author = result.writers.joinToString { it.name }
             manga.genre = result.genres.joinToString { it.title }
-            manga.thumbnail_url = "$apiUrl/image/series-cover?seriesId=${result.seriesId}"
+            manga.thumbnail_url = "$apiUrl/image/series-cover?seriesId=${result.seriesId}&apiKey=${apiKey}"
 
             return manga
         }
@@ -513,7 +515,7 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             pages.add(
                 Page(
                     index = i,
-                    imageUrl = "$apiUrl/Reader/image?chapterId=$chapterId&page=$i"
+                    imageUrl = "$apiUrl/Reader/image?chapterId=$chapterId&page=$i&apiKey=$apiKey"
                 )
             )
         }
@@ -1033,6 +1035,11 @@ class Kavita(private val suffix: String = "") : ConfigurableSource, HttpSource()
             path = path.substring(0, path.length - 1)
         }
         return path
+    }
+
+    private fun getApiKey(): String {
+        // http(s)://host:(port)/api/opds/api-key
+        return getPrefAddress().split("/opds/")[1]
     }
 
     companion object {
